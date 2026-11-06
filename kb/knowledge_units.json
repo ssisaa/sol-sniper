@@ -1,0 +1,384 @@
+[
+  {
+    "id": "sol-snipe-001",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "HighVolatility",
+      "VolumeExpansion",
+      "CreatorFunded"
+    ],
+    "content": "Trigger: Geyser/mempool detects pump.fun bonding-curve completion + immediate Raydium pool creation with \u22658 SOL initial liquidity. Action: Submit Jito bundle buy in the same block targeting 0.3\u20130.8 SOL size. Risk: Abort if freeze or mint authority remains enabled.",
+    "priority": 5,
+    "tags": [
+      "sniping",
+      "solana",
+      "pumpfun",
+      "raydium",
+      "same-block",
+      "jito"
+    ]
+  },
+  {
+    "id": "sol-snipe-002",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "HighVolatility",
+      "VolumeExpansion"
+    ],
+    "content": "Trigger: Same-block liquidity addition detected via Yellowstone gRPC on Raydium AMM or pump.swap with >15 SOL depth. Action: Execute market buy with 8\u201312% priority fee multiplier. Risk: Cap position at 0.6% of capital; exit if first 3 slots show no volume expansion.",
+    "priority": 5,
+    "tags": [
+      "sniping",
+      "solana",
+      "raydium",
+      "same-block",
+      "priority-fee"
+    ]
+  },
+  {
+    "id": "sol-snipe-011",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "HighVolatility"
+    ],
+    "content": "Trigger: Freeze authority still set to creator after migration. Action: Hard filter \u2014 do not enter. Risk: Even if liquidity looks locked, freeze enables permanent transfer blocks.",
+    "priority": 5,
+    "tags": [
+      "sniping",
+      "solana",
+      "honeypot",
+      "rug-pull"
+    ]
+  },
+  {
+    "id": "sol-snipe-012",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "HighVolatility"
+    ],
+    "content": "Trigger: Mint authority retained by creator post-launch. Action: Immediate reject. Risk: Unlimited supply inflation can nuke price in <30 seconds.",
+    "priority": 5,
+    "tags": [
+      "sniping",
+      "solana",
+      "honeypot",
+      "rug-pull"
+    ]
+  },
+  {
+    "id": "sol-snipe-013",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "HighVolatility"
+    ],
+    "content": "Trigger: Token has transfer hooks or restricted transfer program IDs. Action: Blacklist. Risk: Can brick sells even with open liquidity.",
+    "priority": 5,
+    "tags": [
+      "sniping",
+      "solana",
+      "honeypot"
+    ]
+  },
+  {
+    "id": "sol-snipe-014",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "CreatorFunded"
+    ],
+    "content": "Trigger: Creator wallet previously launched \u22652 tokens that rugged within 10 minutes. Action: Permanent filter on this deployer. Risk: Reputation is the strongest pre-filter on Solana.",
+    "priority": 5,
+    "tags": [
+      "sniping",
+      "solana",
+      "creator-wallet",
+      "rug-pull"
+    ]
+  },
+  {
+    "id": "sol-snipe-018",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "HighVolatility"
+    ],
+    "content": "Trigger: Creator begins selling >5% of holdings in any single transaction within first 4 minutes. Action: Full exit. Risk: Creator sells are the highest-conviction rug signal on Solana.",
+    "priority": 5,
+    "tags": [
+      "sniping",
+      "solana",
+      "creator-wallet",
+      "rug-pull"
+    ]
+  },
+  {
+    "id": "sol-snipe-019",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "VolumeExpansion"
+    ],
+    "content": "Trigger: 1-minute volume drops below 25% of the entry-minute volume while price is still above entry. Action: Exit remaining position. Risk: Volume death precedes most 5-minute collapses.",
+    "priority": 5,
+    "tags": [
+      "sniping",
+      "solana",
+      "volume-death",
+      "trailing-stop"
+    ]
+  },
+  {
+    "id": "sol-snipe-021",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "HighVolatility"
+    ],
+    "content": "Trigger: Price reaches +100% from entry. Action: Activate trailing stop at 28\u201335% drawdown from peak (higher than EVM due to Solana volatility). Risk: Tighter trails get wicked out by normal 20\u201325% wicks.",
+    "priority": 5,
+    "tags": [
+      "sniping",
+      "solana",
+      "trailing-stop"
+    ]
+  },
+  {
+    "id": "sol-snipe-022",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "HighVolatility"
+    ],
+    "content": "Trigger: No +20% move within 5 minutes of entry. Action: Time-based full exit. Risk: Dead launches rarely recover on 15s\u20135m timeframe; capital is better redeployed.",
+    "priority": 4,
+    "tags": [
+      "sniping",
+      "solana",
+      "trailing-stop"
+    ]
+  },
+  {
+    "id": "sol-snipe-026",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "HighVolatility"
+    ],
+    "content": "Trigger: Need same-block inclusion against competing snipers. Action: Construct Jito bundle with tip calibrated to current competition (0.01\u20130.05 SOL base + dynamic). Risk: Under-tipping loses the block; over-tipping destroys edge on small capital.",
+    "priority": 5,
+    "tags": [
+      "sniping",
+      "solana",
+      "jito",
+      "same-block",
+      "priority-fee"
+    ]
+  },
+  {
+    "id": "sol-snipe-031",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "HighVolatility"
+    ],
+    "content": "Trigger: Any open position. Action: Maximum single position size = 0.5\u20130.8% of total capital. Risk: Larger sizes amplify both ruin and opportunity cost on micro-capital accounts.",
+    "priority": 5,
+    "tags": [
+      "sniping",
+      "solana"
+    ]
+  },
+  {
+    "id": "sol-snipe-033",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "HighVolatility"
+    ],
+    "content": "Trigger: 4 consecutive losing snipes or daily drawdown >8%. Action: Circuit-breaker pause for 45\u201390 minutes. Risk: Continues trading only after cooldown and regime re-evaluation.",
+    "priority": 5,
+    "tags": [
+      "sniping",
+      "solana"
+    ]
+  },
+  {
+    "id": "sol-snipe-039",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "HighVolatility"
+    ],
+    "content": "Trigger: Network congestion (elevated failed TX rate or TPS stress). Action: Pause new snipes. Risk: Failed or delayed transactions turn edge negative.",
+    "priority": 5,
+    "tags": [
+      "sniping",
+      "solana",
+      "jito"
+    ]
+  },
+  {
+    "id": "sol-snipe-047",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "HighVolatility"
+    ],
+    "content": "Trigger: Need to land buy in target block. Action: Prefer Jito bundles over pure priority fees when competition is high. Risk: Bundles have higher inclusion reliability for same-block targeting.",
+    "priority": 5,
+    "tags": [
+      "sniping",
+      "solana",
+      "jito",
+      "same-block"
+    ]
+  },
+  {
+    "id": "sol-snipe-056",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "HighVolatility"
+    ],
+    "content": "Trigger: Any potential entry. Action: Require both mint and freeze authority renounced (or set to null) before capital is risked. Risk: Non-negotiable filter; everything else is secondary.",
+    "priority": 5,
+    "tags": [
+      "sniping",
+      "solana",
+      "honeypot",
+      "rug-pull"
+    ]
+  },
+  {
+    "id": "sol-snipe-064",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "HighVolatility"
+    ],
+    "content": "Trigger: Detected honeypot simulation failure on sell path. Action: Immediate blacklist. Risk: On-chain simulation of sell is mandatory pre-entry filter.",
+    "priority": 5,
+    "tags": [
+      "sniping",
+      "solana",
+      "honeypot"
+    ]
+  },
+  {
+    "id": "sol-snipe-066",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "HighVolatility"
+    ],
+    "content": "Trigger: Jito tip market heating up. Action: Cap maximum tip at level where edge remains positive after fees. Risk: Chasing inclusion at any cost turns profitable strategy into fee farm for validators.",
+    "priority": 4,
+    "tags": [
+      "sniping",
+      "solana",
+      "jito",
+      "priority-fee"
+    ]
+  },
+  {
+    "id": "sol-snipe-071",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "HighVolatility"
+    ],
+    "content": "Trigger: Slippage on simulated buy exceeds 18% even with small size. Action: Skip. Risk: Indicates either too little liquidity or already-moving price \u2014 both poor for micro-capital snipes.",
+    "priority": 4,
+    "tags": [
+      "sniping",
+      "solana",
+      "raydium",
+      "pumpfun"
+    ]
+  },
+  {
+    "id": "sol-snipe-083",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "HighVolatility"
+    ],
+    "content": "Trigger: Specific KB unit shows negative attributed P&L across \u226530 closed trades with statistical significance. Action: Flag unit for pruning or priority demotion in next RAG cycle. Risk: Retaining losing units systematically degrades decision quality.",
+    "priority": 5,
+    "tags": [
+      "sniping",
+      "solana",
+      "post-trade"
+    ]
+  },
+  {
+    "id": "sol-snipe-085",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "HighVolatility"
+    ],
+    "content": "Trigger: Trade close event. Action: Attribute realized P&L (net of tips/fees) proportionally to the top-K KB units retrieved at decision time. Risk: Without clean attribution the knowledge base cannot self-improve.",
+    "priority": 5,
+    "tags": [
+      "sniping",
+      "solana",
+      "post-trade"
+    ]
+  },
+  {
+    "id": "sol-snipe-088",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "HighVolatility",
+      "VolumeExpansion",
+      "Organic"
+    ],
+    "content": "Trigger: First 3 blocks after liquidity addition show \u226540 unique organic signers with no single wallet >8% of volume. Action: Full-size same-block or next-block entry. Risk: Exit if organic inflow collapses in blocks 4\u20136.",
+    "priority": 5,
+    "tags": [
+      "sniping",
+      "solana",
+      "raydium",
+      "pumpfun",
+      "same-block"
+    ]
+  },
+  {
+    "id": "sol-snipe-095",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "HighVolatility"
+    ],
+    "content": "Trigger: Exit required on thin liquidity (<4 SOL depth remaining). Action: Split sell across 2\u20133 consecutive slots at 30\u201340% of remaining size each. Risk: Single-slot market sells on thin pools produce catastrophic slippage.",
+    "priority": 5,
+    "tags": [
+      "sniping",
+      "solana",
+      "trailing-stop",
+      "volume-death"
+    ]
+  },
+  {
+    "id": "sol-snipe-100",
+    "source": "solana-snipe-research-2026",
+    "topic": "SolanaNative",
+    "conditions": [
+      "HighVolatility"
+    ],
+    "content": "Trigger: Position closed at a loss. Action: Enforce 3-minute cool-down before any re-entry on the same mint; never revenge-trade the same token. Risk: Immediate re-entries after losses have the lowest expectancy of any action on this timeframe.",
+    "priority": 5,
+    "tags": [
+      "sniping",
+      "solana",
+      "trailing-stop"
+    ]
+  }
+]

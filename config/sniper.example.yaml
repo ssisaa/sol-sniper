@@ -1,0 +1,75 @@
+# SOL-SNIPER config — copy to sniper.yaml and edit.
+# Env vars still override file values if set (optional).
+
+wallet:
+  live: false                          # true = real txs (same as SOL_SNIPER_LIVE=1)
+  keypair_path: "./bot-wallet.json"    # Solana CLI id.json path
+  private_key: null                    # optional base58 (prefer file path)
+  allow_launch: false                  # true = live launch snipes (mint auth SET ok)
+
+rpc:
+  # Paid RPC strongly recommended for live
+  urls:
+    - "https://api.mainnet-beta.solana.com"
+    - "https://solana-rpc.publicnode.com"
+  # primary: "https://YOUR-HELIUS-OR-TRITON-URL"
+
+jupiter:
+  api_key: null                        # from https://portal.jup.ag
+
+pumpportal:
+  api_key: null                        # Lightning only. Same wallet as this bot.
+  route: local                         # local | lightning | pump | jupiter
+
+jito:
+  enabled: true
+
+# ======================
+# EMAIL (Resend)
+# ======================
+# RESEND_API_KEY=re_xxxxx
+# ALERT_FROM_EMAIL=alerts@yourdomain.com
+# ALERT_TO_EMAIL=you@yourdomain.com
+email:
+  resend_api_key: null
+  from_email: null
+  to_email: null
+
+trading:
+  mode: paper                          # paper | live
+  filter_mode: launch                  # strict | scalp | pump_curve | launch | dayscalp
+  max_position_sol: 0.015
+  max_concurrent: 3
+  min_liquidity_sol: 2.0
+  trade_enabled: true
+  duration_sec: 0                      # 0 = endless
+
+risk:
+  hard_stop_pct: -0.28
+  time_stop_seconds: 45
+  time_stop_min_gain: 0.10
+  trail_activate_pct: 0.20
+  trail_drawdown_pct: 0.12
+  tp_levels: [0.25, 0.60]
+  tp_fractions: [0.50, 0.30]
+  absolute_max_tip_sol: 0.015
+
+# Day-scalp strategy (filter_mode: dayscalp) — does NOT replace launch sniping
+dayscalp:
+  scan_interval_sec: 45
+  min_liquidity_usd: 25000
+  min_volume_m5_usd: 5000
+  min_m5_change_pct: 4.0               # 5m momentum floor
+  max_m5_change_pct: 45.0              # skip already parabolic (FOMO tops)
+  min_m1_support_bounce_pct: 0.3       # prefer hold above short support proxy
+  max_candidates_per_scan: 5
+  max_position_sol: 0.02               # ~$3-4 at $150/SOL; scale with capital
+  hard_stop_pct: -0.12                 # tighter than launch snipe
+  time_stop_seconds: 300               # up to 5 minutes
+  time_stop_min_gain: 0.03
+  trail_activate_pct: 0.08
+  trail_drawdown_pct: 0.04
+  tp_levels: [0.06, 0.12, 0.22]
+  tp_fractions: [0.40, 0.35, 0.25]
+  require_buy_side_pressure: true      # txns buy > sell on m5 when available
+  blacklist_keywords: ["scam", "test", "rug"]

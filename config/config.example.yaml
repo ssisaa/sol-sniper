@@ -1,0 +1,79 @@
+# SOL-SNIPER v1.2 Configuration
+# Copy to config.yaml and adjust
+
+mode: paper                    # paper | live
+
+# Capital & Risk
+capital:
+  total_sol: 10.0
+  max_position_pct: 0.007      # 0.7%
+  max_concurrent_positions: 5
+  daily_loss_limit_pct: 0.10
+  consecutive_loss_pause: 4
+
+# Latency targets (ms)
+latency:
+  hard_filter_p95: 18
+  detection_to_submit_p50: 400
+  exit_loop_tick_p95: 800
+
+# Data Layer (L1)
+rpc:
+  primary_grpc: "https://your-helius-or-triton-grpc-endpoint"
+  fallback_rpcs:
+    - "https://mainnet.helius-rpc.com/?api-key=YOUR_KEY"
+    - "https://api.mainnet-beta.solana.com"
+  commitment: "processed"
+  timeout_ms: 3000
+
+# Jito
+jito:
+  block_engine_url: "https://mainnet.block-engine.jito.wtf"
+  tip_accounts: []             # populated at runtime or static
+  max_tip_sol: 0.02
+  max_edge_ratio: 0.35         # never pay more than 35% of expected edge
+
+# Decision Engine
+decision:
+  hard_filter_enabled: true
+  rag_enabled: true
+  rag_timeout_ms: 600
+  local_llm_preferred: true
+  top_k: 8
+
+# Knowledge Base
+kb:
+  path: "kb/knowledge_units.json"
+  qdrant_url: "http://localhost:6333"
+  collection: "sol_sniper_kb"
+  embedding_model: "text-embedding-3-small"
+
+# Wallets
+wallets:
+  pool_size: 20
+  min_balance_sol: 0.05
+  key_store: "encrypted"       # or path to keypair dir (dev only)
+
+# Exit Loop
+exit:
+  tick_interval_ms: 800
+  volume_death_threshold: 0.25
+  time_stop_seconds: 300
+  trailing_stop_activate_pct: 1.0
+  trailing_stop_drawdown_pct: 0.30
+
+# Observability
+observability:
+  log_level: "INFO"
+  telegram_bot_token: ""
+  telegram_chat_id: ""
+  attribution_enabled: true
+  competition_estimator: true
+
+# Feature Flags
+features:
+  in_stream_prefilter: true
+  multi_rpc_fanout: true
+  pre_submit_simulation: true
+  regime_aware_retrieval: true
+  kb_pruning: true

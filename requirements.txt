@@ -1,0 +1,36 @@
+# Core
+python-dotenv>=1.0.0
+pyyaml>=6.0
+pydantic>=2.5
+pydantic-settings>=2.1
+structlog>=24.1
+tenacity>=8.2
+httpx>=0.27
+curl_cffi>=0.7
+orjson>=3.9
+
+# Solana
+solana>=0.34
+solders>=0.21
+anchorpy>=0.19
+
+# Data / Messaging
+redis>=5.0
+qdrant-client>=1.9
+
+# LLM / RAG (optional local)
+openai>=1.30          # fallback
+# vllm / llama-cpp-python can be added later for local inference
+
+# Utils
+numpy>=1.26
+pandas>=2.1
+duckdb>=0.10
+aiohttp>=3.9
+websockets>=12.0
+
+# Dev / Test
+pytest>=8.0
+pytest-asyncio>=0.23
+ruff>=0.4
+mypy>=1.9

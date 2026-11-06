@@ -1,0 +1,669 @@
+20:50:55 | INFO    | sol-sniper.config | Loaded config: /home/user/sol-sniper/config/sniper.yaml
+20:50:55 | INFO    | sol-sniper.config | BUY/SELL RPC is the paid primary cdn.fluxrpc.com?key=5a7c7e8f-b213-4e19-b550-83de0481d82d — public RPCs are for scans only
+20:50:55 | INFO    | sol-sniper.config | Runtime config updated from file: ['filter_mode', 'max_position_sol', 'max_concurrent', 'min_liquidity_sol', 'trade_enabled', 'tx_route', 'hard_stop_pct', 'time_stop_seconds', 'time_stop_min_gain', 'trail_activate_pct', 'trail_drawdown_pct', 'tp_levels', 'tp_fractions', 'absolute_max_tip_sol']
+20:50:55 | INFO    | sol-sniper.sqlite | SQLite ready /home/user/sol-sniper/sqlitebase/sniper.db
+20:50:55 | INFO    | sol-sniper | Restored settings from last run — filter=launch style=ath trade=True max_pos=0.0150 route=local
+20:50:55 | INFO    | sol-sniper | SOL-SNIPER starting | version=2.1.0 | mode=live-feed
+20:50:55 | INFO    | sol-sniper | === SOL-SNIPER v1.2 FULL PIPELINE (feed + decode + trade + exits) ===
+20:50:55 | INFO    | sol-sniper | Duration: 0s | max_decodes/min: 30 | UI=True | trade_mode=live
+20:50:55 | INFO    | sol-sniper.dashboard | Dashboard UI available at http://localhost:8080/
+20:50:55 | INFO    | sol-sniper | Open UI → http://localhost:8080/
+20:50:55 | INFO    | websockets.server | server listening on 0.0.0.0:8765
+20:50:55 | INFO    | sol-sniper.dashboard | Dashboard WebSocket listening on ws://0.0.0.0:8765
+20:50:56 | INFO    | sol-sniper.rpc | RPC client started | endpoints=2 | healthy=2
+20:50:56 | INFO    | sol-sniper | WS endpoints: ['wss://solana-rpc.publicnode.com', 'wss://api.mainnet-beta.solana.com']
+20:50:56 | INFO    | sol-sniper.ledger | PNL board restored daily=+0.0000 30d=+0.0000 total=+0.0000 live=+0.0000 wins=0 losses=0
+20:50:56 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:50:56 | INFO    | sol-sniper | ========== LIVE ARMING STATUS ==========
+20:50:56 | INFO    | sol-sniper | trade_mode=live | Trader.mode=live
+20:50:56 | INFO    | sol-sniper | SOL_SNIPER_LIVE='1'
+20:50:56 | INFO    | sol-sniper | SOL_SNIPER_KEYPAIR=/home/user/sol-sniper/logs/active-wallet.json
+20:50:56 | INFO    | sol-sniper | SOL_SNIPER_PRIVATE_KEY=(not set)
+20:50:56 | INFO    | sol-sniper | solders: installed
+20:50:56 | WARNING | sol-sniper | WALLET NOT ARMED | buys will not broadcast. Need: SOL_SNIPER_LIVE=1 + keypair + solders
+20:50:56 | INFO    | sol-sniper | ========================================
+20:50:56 | INFO    | sol-sniper | AUTO RESTART off — it will not reload by itself. Use the Restart button.
+20:50:56 | INFO    | sol-sniper | Restart kept the saved set — filter=launch trade=True max_pos=0.0150 callout=False
+20:50:56 | INFO    | sol-sniper | AUTO-TRADE ON | mode=live filter=launch trade_enabled=True max_pos=0.015 SOL
+20:50:56 | INFO    | sol-sniper | LAUNCH scanner started (on when Launch is enabled in Settings)
+20:50:56 | INFO    | sol-sniper | DAYSCALP worker started (on when Dayscalp is enabled in Settings)
+20:50:56 | INFO    | sol-sniper | Running ENDLESSLY — press Ctrl+C to stop, or use the Restart button
+20:50:56 | INFO    | sol-sniper.risk | Exit loop started (interval=0.35s)
+20:50:56 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:50:56 | INFO    | sol-sniper.ws | Connecting to WebSocket: wss://solana-rpc.publicnode.com
+20:50:56 | INFO    | sol-sniper | DAYSCALP sequential TOP1 | vol_m5>=$1000 m5=[25.0%,1000.0%] pos=0.015 SOL buy_attempts=2 wait_for_full_exit=ON
+20:50:56 | WARNING | sol-sniper.lane | FAST LANE on — buy and sell run on their own thread, not behind the scan
+20:50:56 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=0 fresh=0 youngest=—
+20:50:56 | INFO    | sol-sniper | EXEC history syncs from public RPCs every 3s — primary stays at 1 call/sec
+20:50:56 | WARNING | sol-sniper | DAYSCALP scan off — filter=launch dayscalp_enabled=False
+20:50:57 | INFO    | sol-sniper.ws | Subscribed to slots (id=1). Log subscribe is not used.
+20:50:57 | INFO    | sol-sniper.ws | WebSocket connected and subscriptions active (wss://solana-rpc.publicnode.com)
+20:50:57 | INFO    | sol-sniper.caller-stream | CALLER STREAM connected — PumpPortal
+20:50:57 | WARNING | sol-sniper.caller-stream | CALLER STREAM PumpPortal refused the trade feed ({'message': "'subscribeTokenTrade' and 'subscribeAccountTrade' methods are only available when connecting with an API key funded with at least 0.02 SOL."}) — using RPC logs
+20:50:57 | INFO    | sol-sniper | LAUNCH create feed connected
+20:50:58 | INFO    | sol-sniper.caller-stream | CALLER STREAM connected — RPC logs wss://api.mainnet-beta.solana.com
+20:50:58 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=40 fresh=8 youngest=7s
+20:50:58 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:50:58 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:50:59 | INFO    | sol-sniper | LAUNCH born DGX 3LFEGUT7
+20:50:59 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:50:59 | INFO    | websockets.server | connection open
+20:50:59 | INFO    | sol-sniper.dashboard | Dashboard client connected (1 total)
+20:51:00 | INFO    | sol-sniper | heartbeat slot=466115840 | events=4 decodes=121 buys=0 fills=0 open=0 pnl=0.0000
+20:51:00 | INFO    | sol-sniper | LAUNCH NORTHKOREA 5atxcXVs liq=0.00 vol=$0 verdict=SKIP
+20:51:02 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:51:02 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=41 fresh=9 youngest=4s
+20:51:02 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:02 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:05 | INFO    | sol-sniper | LAUNCH DGX 3LFEGUT7 liq=30.10 vol=$0 verdict=SKIP
+20:51:05 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:51:07 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=40 fresh=4 youngest=1s
+20:51:07 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:07 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:08 | INFO    | sol-sniper | heartbeat slot=466115880 | events=10 decodes=366 buys=0 fills=0 open=0 pnl=0.0000
+20:51:09 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:51:09 | INFO    | sol-sniper | LAUNCH CHIMP AfC9bjok liq=0.00 vol=$0 verdict=SKIP
+20:51:11 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=40 fresh=4 youngest=1s
+20:51:11 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:11 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:12 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:51:14 | INFO    | sol-sniper | LAUNCH CHIMP AfC9bjok liq=0.00 vol=$0 verdict=SKIP
+20:51:15 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:51:16 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=40 fresh=6 youngest=2s
+20:51:16 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:16 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:17 | INFO    | sol-sniper | heartbeat slot=466115920 | events=16 decodes=608 buys=0 fills=0 open=0 pnl=0.0000
+20:51:18 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:51:18 | INFO    | sol-sniper | LAUNCH EU A4QMJCtY liq=0.00 vol=$0 verdict=SKIP
+20:51:20 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=40 fresh=6 youngest=2s
+20:51:20 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:20 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:21 | INFO    | sol-sniper | LAUNCH born ZULENSKY AbPCx218
+20:51:21 | INFO    | sol-sniper | LAUNCH born elun 6cuTcvdr
+20:51:21 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:51:22 | INFO    | sol-sniper | LAUNCH born elun EivaHd76
+20:51:22 | INFO    | sol-sniper | LAUNCH born ZULENSKY 6Xz6Vjd5
+20:51:22 | INFO    | sol-sniper | LAUNCH EU A4QMJCtY liq=0.00 vol=$0 verdict=SKIP
+20:51:24 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=41 fresh=9 youngest=2s
+20:51:24 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:24 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:24 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:51:25 | INFO    | sol-sniper.dashboard | Dashboard client disconnected (0 total)
+20:51:26 | INFO    | websockets.server | connection open
+20:51:26 | INFO    | sol-sniper.dashboard | Dashboard client connected (1 total)
+20:51:26 | INFO    | sol-sniper | heartbeat slot=466115960 | events=22 decodes=856 buys=0 fills=0 open=0 pnl=0.0000
+20:51:27 | INFO    | sol-sniper | LAUNCH ZULENSKY 6Xz6Vjd5 liq=30.00 vol=$0 verdict=SKIP
+20:51:27 | INFO    | sol-sniper | LAUNCH born Red pumpCmXq
+20:51:28 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:51:29 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=42 fresh=10 youngest=2s
+20:51:29 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:29 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:31 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:51:33 | INFO    | sol-sniper | LAUNCH born elun 29qvUeX9
+20:51:34 | INFO    | sol-sniper | LAUNCH Red pumpCmXq liq=30.00 vol=$0 verdict=SKIP
+20:51:34 | INFO    | sol-sniper | LAUNCH born elun HM2H4J8B
+20:51:34 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:51:35 | INFO    | sol-sniper | heartbeat slot=466116000 | events=28 decodes=1124 buys=0 fills=0 open=0 pnl=0.0000
+20:51:36 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=43 fresh=16 youngest=2s
+20:51:36 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:36 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:37 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:51:38 | INFO    | sol-sniper | LAUNCH elun HM2H4J8B liq=30.00 vol=$0 verdict=SKIP
+20:51:40 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:51:40 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=41 fresh=14 youngest=2s
+20:51:40 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:40 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:43 | INFO    | sol-sniper | LAUNCH COMRADEDONAL 2tDsnK4K liq=0.00 vol=$0 verdict=SKIP
+20:51:43 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:51:44 | INFO    | sol-sniper | heartbeat slot=466116040 | events=34 decodes=1383 buys=0 fills=0 open=0 pnl=0.0000
+20:51:45 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=40 fresh=13 youngest=2s
+20:51:45 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:45 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:45 | INFO    | sol-sniper | LAUNCH born elun ifEqkCUT
+20:51:47 | INFO    | sol-sniper | LAUNCH born elun 6PNkuRtn
+20:51:47 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:51:47 | INFO    | sol-sniper | LAUNCH COMRADEDONAL 2tDsnK4K liq=0.00 vol=$0 verdict=SKIP
+20:51:49 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=40 fresh=12 youngest=2s
+20:51:49 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:49 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:50 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:51:51 | INFO    | sol-sniper | LAUNCH elun 7U18JWno liq=0.00 vol=$0 verdict=SKIP
+20:51:53 | INFO    | sol-sniper | heartbeat slot=466116080 | events=41 decodes=1676 buys=0 fills=0 open=0 pnl=0.0000
+20:51:53 | INFO    | sol-sniper | LAUNCH born DGX EDi2huhd
+20:51:53 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:51:53 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=41 fresh=12 youngest=1s
+20:51:53 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:53 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:56 | INFO    | sol-sniper | LAUNCH elun 7U18JWno liq=0.00 vol=$0 verdict=SKIP
+20:51:56 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:51:58 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=40 fresh=7 youngest=2s
+20:51:58 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:58 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:51:59 | INFO    | sol-sniper | LAUNCH born elun B8VsSNnK
+20:51:59 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:51:59 | INFO    | sol-sniper | LAUNCH born elun GeCEmBf8
+20:52:00 | INFO    | sol-sniper | LAUNCH OGDNUT F8meusiT liq=0.00 vol=$0 verdict=SKIP
+20:52:02 | INFO    | sol-sniper | heartbeat slot=466116120 | events=47 decodes=1931 buys=0 fills=0 open=0 pnl=0.0000
+20:52:02 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=42 fresh=9 youngest=2s
+20:52:02 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:02 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:02 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:52:04 | INFO    | sol-sniper | LAUNCH OGDNUT F8meusiT liq=0.00 vol=$0 verdict=SKIP
+20:52:06 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:52:06 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=40 fresh=6 youngest=2s
+20:52:06 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:06 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:09 | INFO    | sol-sniper | LAUNCH FEUD 7dEjbziR liq=0.00 vol=$0 verdict=SKIP
+20:52:09 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:52:10 | INFO    | sol-sniper | heartbeat slot=466116160 | events=54 decodes=2226 buys=0 fills=0 open=0 pnl=0.0000
+20:52:11 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=40 fresh=6 youngest=2s
+20:52:11 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:11 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:11 | INFO    | sol-sniper | LAUNCH born Heisto GKvToBWJ
+20:52:12 | INFO    | sol-sniper | LAUNCH born Heisto D7RKJ6zz
+20:52:12 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:52:13 | INFO    | sol-sniper | LAUNCH FEUD 7dEjbziR liq=0.00 vol=$0 verdict=SKIP
+20:52:15 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=40 fresh=9 youngest=3s
+20:52:15 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:15 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:15 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:52:17 | INFO    | sol-sniper | LAUNCH Crocs HdtnW3z6 liq=0.00 vol=$0 verdict=SKIP
+20:52:18 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:52:19 | INFO    | sol-sniper | heartbeat slot=466116200 | events=60 decodes=2477 buys=0 fills=0 open=0 pnl=0.0000
+20:52:19 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=40 fresh=9 youngest=3s
+20:52:19 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:19 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:21 | INFO    | sol-sniper | LAUNCH Crocs HdtnW3z6 liq=0.00 vol=$0 verdict=SKIP
+20:52:21 | INFO    | sol-sniper | LAUNCH born ATHENA 8NKukugV
+20:52:21 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:52:23 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=41 fresh=9 youngest=2s
+20:52:23 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:23 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:25 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:52:26 | INFO    | sol-sniper | LAUNCH ATHENA 8NKukugV liq=30.51 vol=$0 verdict=SKIP
+20:52:27 | INFO    | sol-sniper | heartbeat slot=466116240 | events=66 decodes=2728 buys=0 fills=0 open=0 pnl=0.0000
+20:52:28 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=41 fresh=9 youngest=2s
+20:52:28 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:28 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:28 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:52:30 | INFO    | sol-sniper | LAUNCH LZY DUR AWt1TvRH liq=0.00 vol=$0 verdict=SKIP
+20:52:31 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:52:32 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=40 fresh=9 youngest=2s
+20:52:32 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:32 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:33 | INFO    | sol-sniper | LAUNCH born Heisto 6giovgkJ
+20:52:34 | INFO    | sol-sniper | LAUNCH born Heisto D9cB42ET
+20:52:34 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:52:34 | INFO    | sol-sniper | LAUNCH sol AztFX3DR liq=0.00 vol=$0 verdict=SKIP
+20:52:36 | INFO    | sol-sniper | heartbeat slot=466116280 | events=72 decodes=2974 buys=0 fills=0 open=0 pnl=0.0000
+20:52:36 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=42 fresh=11 youngest=2s
+20:52:36 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:36 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:37 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:52:38 | INFO    | sol-sniper | LAUNCH sol AztFX3DR liq=0.00 vol=$0 verdict=SKIP
+20:52:40 | INFO    | sol-sniper | LAUNCH born BOTBAL 2MYYTyX9
+20:52:40 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=41 fresh=7 youngest=0s
+20:52:40 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:40 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:41 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:52:41 | INFO    | sol-sniper | LAUNCH born BOTBAL EejsHRZS
+20:52:42 | INFO    | sol-sniper | LAUNCH born PLEASE G4rS59o9
+20:52:43 | INFO    | sol-sniper | LAUNCH GREEN AKX2sGSF liq=0.00 vol=$0 verdict=SKIP
+20:52:44 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:52:45 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=43 fresh=10 youngest=1s
+20:52:45 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:45 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:45 | INFO    | sol-sniper | heartbeat slot=466116320 | events=80 decodes=3317 buys=0 fills=0 open=0 pnl=0.0000
+20:52:47 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:52:47 | INFO    | sol-sniper | LAUNCH GREEN AKX2sGSF liq=0.00 vol=$0 verdict=SKIP
+20:52:49 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=40 fresh=10 youngest=3s
+20:52:49 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:49 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:50 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:52:51 | INFO    | sol-sniper | LAUNCH HAPPENED 3ghbzdNW liq=0.00 vol=$0 verdict=SKIP
+20:52:53 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:52:53 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=40 fresh=10 youngest=3s
+20:52:53 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:53 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:54 | INFO    | sol-sniper | heartbeat slot=466116360 | events=86 decodes=3573 buys=0 fills=0 open=0 pnl=0.0000
+20:52:55 | INFO    | sol-sniper | LAUNCH born $INUCROK 87BwCp3F
+20:52:56 | INFO    | sol-sniper | LAUNCH HAPPENED 3ghbzdNW liq=0.00 vol=$0 verdict=SKIP
+20:52:56 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:52:58 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=41 fresh=10 youngest=2s
+20:52:58 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:58 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:52:58 | INFO    | sol-sniper | LAUNCH born memcuin 467rYUev
+20:53:00 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:53:00 | INFO    | sol-sniper | LAUNCH born SXSI EM4QnaDB
+20:53:00 | INFO    | sol-sniper | LAUNCH PEPALA 7PP3yVRr liq=0.00 vol=$0 verdict=SKIP
+20:53:02 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=43 fresh=12 youngest=2s
+20:53:02 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:53:02 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:53:03 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:53:03 | INFO    | sol-sniper | heartbeat slot=466116400 | events=93 decodes=3869 buys=0 fills=0 open=0 pnl=0.0000
+20:53:04 | INFO    | sol-sniper | LAUNCH PEPALA 7PP3yVRr liq=0.00 vol=$0 verdict=SKIP
+20:53:06 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:53:06 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=40 fresh=10 youngest=5s
+20:53:06 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:53:06 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:53:08 | INFO    | sol-sniper | LAUNCH DOOB dPddLCEn liq=0.00 vol=$0 verdict=SKIP
+20:53:09 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:53:10 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=40 fresh=10 youngest=5s
+20:53:10 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:53:10 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:53:12 | INFO    | sol-sniper | heartbeat slot=466116440 | events=99 decodes=4120 buys=0 fills=0 open=0 pnl=0.0000
+20:53:12 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:53:12 | INFO    | sol-sniper | LAUNCH DOOB dPddLCEn liq=0.00 vol=$0 verdict=SKIP
+20:53:14 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=40 fresh=4 youngest=13s
+20:53:14 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:53:14 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:53:15 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:53:17 | INFO    | sol-sniper | LAUNCH memcuin 467rYUev liq=0.00 vol=$0 verdict=SKIP
+20:53:19 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:53:19 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=40 fresh=4 youngest=12s
+20:53:19 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:53:19 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:53:20 | INFO    | sol-sniper | heartbeat slot=466116480 | events=105 decodes=4363 buys=0 fills=0 open=0 pnl=0.0000
+20:53:21 | INFO    | sol-sniper | LAUNCH SXSI EM4QnaDB liq=0.00 vol=$0 verdict=SKIP
+20:53:21 | INFO    | sol-sniper | LAUNCH born Onchain DpFsykbH
+20:53:22 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:53:22 | INFO    | sol-sniper | LAUNCH born Onchain CTi9FeQH
+20:53:23 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=42 fresh=6 youngest=1s
+20:53:23 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:53:23 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:53:25 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:53:26 | INFO    | sol-sniper | LAUNCH Onchain CTi9FeQH liq=30.00 vol=$0 verdict=SKIP
+20:53:26 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:53:27 | INFO    | sol-sniper.exec_history | EXEC wallet sync 14 txs
+20:53:28 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=40 fresh=5 youngest=3s
+20:53:28 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:53:28 | INFO    | sol-sniper | heartbeat slot=466116520 | events=112 decodes=4652 buys=0 fills=0 open=0 pnl=0.0000
+20:53:31 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:53:31 | INFO    | sol-sniper.wallet_tokens | token program Tokenkeg had no HTTP 200
+20:53:31 | INFO    | sol-sniper.wallet_tokens | token program TokenzQd had no HTTP 200
+20:53:31 | INFO    | sol-sniper.wallet_tokens | wallet list incomplete — one token program did not answer
+20:53:31 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:53:31 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:53:32 | INFO    | sol-sniper | LAUNCH born STELLA pumpCmXq
+20:53:33 | INFO    | sol-sniper | LAUNCH born TОAD 74juQ1BB
+20:53:34 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:53:35 | WARNING | sol-sniper | HELD wallet coins now 4heTeQKo,98AG3zJU,D9qKqrph,DZG93JAq,HRtsYgMm,PreweJYE
+20:53:37 | INFO    | sol-sniper.wallet_tokens | token program Tokenkeg had no HTTP 200
+20:53:37 | INFO    | sol-sniper.wallet_tokens | token program TokenzQd had no HTTP 200
+20:53:37 | INFO    | sol-sniper.wallet_tokens | wallet list incomplete — one token program did not answer
+20:53:37 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:53:37 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:53:38 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:53:38 | INFO    | sol-sniper | heartbeat slot=466116560 | events=116 decodes=4825 buys=0 fills=0 open=0 pnl=0.0000
+20:53:41 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:53:41 | INFO    | sol-sniper | LAUNCH born SOTA 7Z1BnudS
+20:53:44 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:53:45 | INFO    | sol-sniper | LAUNCH GREEN GLHwH5Ka liq=0.00 vol=$0 verdict=SKIP
+20:53:45 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:53:46 | INFO    | sol-sniper | heartbeat slot=466116600 | events=120 decodes=4995 buys=0 fills=0 open=0 pnl=0.0000
+20:53:47 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=41 fresh=11 youngest=4s
+20:53:47 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:53:47 | INFO    | sol-sniper | LAUNCH born FEAR 9ddWGY6Q
+20:53:50 | INFO    | sol-sniper.dashboard | Dashboard client disconnected (0 total)
+20:53:50 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:53:50 | INFO    | websockets.server | connection open
+20:53:50 | INFO    | sol-sniper.dashboard | Dashboard client connected (1 total)
+20:53:52 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:53:52 | INFO    | sol-sniper.wallet_tokens | token program Tokenkeg had no HTTP 200
+20:53:52 | INFO    | sol-sniper.wallet_tokens | token program TokenzQd had no HTTP 200
+20:53:52 | INFO    | sol-sniper.wallet_tokens | wallet list incomplete — one token program did not answer
+20:53:52 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:53:53 | WARNING | sol-sniper.jupiter | Jupiter no market mint=D9qKqrph — not asking again for 30m
+20:53:53 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:53:54 | INFO    | sol-sniper | heartbeat slot=466116640 | events=126 decodes=5247 buys=0 fills=0 open=0 pnl=0.0000
+20:53:55 | WARNING | sol-sniper.jupiter | Jupiter no market mint=DZG93JAq — not asking again for 30m
+20:53:57 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:53:57 | INFO    | sol-sniper | LAUNCH born tourniquet CwDxrcd3
+20:53:59 | INFO    | sol-sniper | LAUNCH born FEAR 44SvxhFA
+20:54:00 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:54:00 | INFO    | sol-sniper | LAUNCH GETPAID 2pTtUZ56 liq=0.00 vol=$0 verdict=SKIP
+20:54:00 | INFO    | sol-sniper | LAUNCH born GNP 9yWnbFr5
+20:54:02 | INFO    | sol-sniper | LAUNCH SCAN age 1–15s listed=43 fresh=9 youngest=2s
+20:54:03 | INFO    | sol-sniper | heartbeat slot=466116680 | events=131 decodes=5460 buys=0 fills=0 open=0 pnl=0.0000
+20:54:03 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:54:04 | WARNING | sol-sniper | FILTER SWITCH launch → opencopy (Live Controls). sniper.yaml is only the startup default.
+20:54:04 | INFO    | sol-sniper | UI config update ['filter_mode', 'launch_enabled', 'opencopy_enabled'] → filter_mode=opencopy trade_enabled=True
+20:54:06 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:54:07 | INFO    | sol-sniper.wallet_tokens | token program Tokenkeg had no HTTP 200
+20:54:07 | INFO    | sol-sniper.wallet_tokens | token program TokenzQd had no HTTP 200
+20:54:07 | INFO    | sol-sniper.wallet_tokens | wallet list incomplete — one token program did not answer
+20:54:07 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:54:09 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:54:11 | INFO    | sol-sniper.wallet_tokens | token program Tokenkeg had no HTTP 200
+20:54:11 | INFO    | sol-sniper.wallet_tokens | token program TokenzQd had no HTTP 200
+20:54:11 | INFO    | sol-sniper.wallet_tokens | wallet list incomplete — one token program did not answer
+20:54:11 | WARNING | sol-sniper.execution | wallet read missed — no coin on file, buy allowed
+20:54:11 | INFO    | sol-sniper | LAUNCH GNP 9yWnbFr5 liq=30.00 vol=$0 verdict=SKIP
+20:54:11 | INFO    | sol-sniper | heartbeat slot=466116720 | events=135 decodes=5632 buys=0 fills=0 open=0 pnl=0.0000
+20:54:12 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:54:12 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:54:16 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:54:18 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:54:19 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:54:20 | INFO    | sol-sniper | heartbeat slot=466116760 | events=139 decodes=5795 buys=0 fills=0 open=0 pnl=0.0000
+20:54:22 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:54:24 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:54:25 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:54:27 | INFO    | sol-sniper | Built-in ath was not overwritten. These numbers are saved for the next restart.
+20:54:27 | INFO    | sol-sniper | UI config update ['hard_stop_pct', 'runner_stop_pct', 'tp_levels', 'tp_fractions'] → filter_mode=opencopy trade_enabled=True
+20:54:28 | INFO    | sol-sniper | heartbeat slot=466116800 | events=143 decodes=5955 buys=0 fills=0 open=0 pnl=0.0000
+20:54:28 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:54:32 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:54:35 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:54:36 | INFO    | sol-sniper | heartbeat slot=466116840 | events=148 decodes=6155 buys=0 fills=0 open=0 pnl=0.0000
+20:54:38 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:54:41 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:54:44 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:54:44 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:54:45 | INFO    | sol-sniper | heartbeat slot=466116880 | events=152 decodes=6315 buys=0 fills=0 open=0 pnl=0.0000
+20:54:47 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:54:48 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:54:50 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:54:53 | INFO    | sol-sniper | heartbeat slot=466116920 | events=156 decodes=6475 buys=0 fills=0 open=0 pnl=0.0000
+20:54:54 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:54:57 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:55:00 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:55:01 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:55:02 | INFO    | sol-sniper | heartbeat slot=466116960 | events=160 decodes=6635 buys=0 fills=0 open=0 pnl=0.0000
+20:55:03 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:55:06 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:55:10 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:55:11 | INFO    | sol-sniper | heartbeat slot=466117000 | events=165 decodes=6835 buys=0 fills=0 open=0 pnl=0.0000
+20:55:13 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:55:13 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:55:16 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:55:18 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:55:19 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:55:19 | INFO    | sol-sniper | heartbeat slot=466117040 | events=169 decodes=6995 buys=0 fills=0 open=0 pnl=0.0000
+20:55:22 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:55:25 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:55:27 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:55:28 | INFO    | sol-sniper | heartbeat slot=466117080 | events=173 decodes=7155 buys=0 fills=0 open=0 pnl=0.0000
+20:55:29 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:55:30 | INFO    | sol-sniper.signer | Wallet changed to Gcup6JQa…
+20:55:30 | WARNING | sol-sniper.execution | LIVE MODE ARMED — real transactions will be sent
+20:55:30 | INFO    | sol-sniper | WALLET UPLOAD ARMED | pubkey=Gcup6JQa…
+20:55:32 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:55:34 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:55:35 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:55:36 | INFO    | sol-sniper.exec_history | EXEC wallet list empty from every RPC
+20:55:37 | INFO    | sol-sniper | heartbeat slot=466117120 | events=178 decodes=7355 buys=0 fills=0 open=0 pnl=0.0000
+20:55:38 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:55:41 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:55:43 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:55:44 | INFO    | sol-sniper.exec_history | EXEC wallet list empty from every RPC
+20:55:45 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:55:47 | WARNING | sol-sniper | HELD wallet coins now 5h6eVq4S,D4rzv9WA,EPjFWdd5
+20:55:48 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:55:48 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:55:51 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:55:53 | INFO    | sol-sniper.exec_history | EXEC wallet list empty from every RPC
+20:55:54 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:55:56 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:55:57 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:55:59 | INFO    | sol-sniper.exec_history | EXEC wallet list empty from every RPC
+20:56:00 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:56:03 | INFO    | sol-sniper.route | RPC cdn.fluxrpc.com did not connect (TimeoutError) — used cdn.fluxrpc.com
+20:56:03 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:56:04 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:56:06 | INFO    | sol-sniper.exec_history | EXEC wallet list empty from every RPC
+20:56:07 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:56:10 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:56:11 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:56:11 | INFO    | sol-sniper.exec_history | EXEC wallet list empty from every RPC
+20:56:13 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:56:16 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:56:16 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:56:17 | INFO    | sol-sniper.exec_history | EXEC wallet list empty from every RPC
+20:56:19 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:56:22 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:56:23 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:56:23 | INFO    | sol-sniper.exec_history | EXEC wallet list empty from every RPC
+20:56:26 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:56:27 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:56:29 | INFO    | sol-sniper.signer | Wallet changed to 7r6WDTb9…
+20:56:29 | WARNING | sol-sniper.execution | LIVE MODE ARMED — real transactions will be sent
+20:56:29 | INFO    | sol-sniper | WALLET UPLOAD ARMED | pubkey=7r6WDTb9…
+20:56:29 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:56:30 | INFO    | sol-sniper.exec_history | EXEC wallet list empty from every RPC
+20:56:32 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:56:35 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:56:35 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:56:37 | INFO    | sol-sniper.exec_history | EXEC wallet sync 22 txs
+20:56:37 | WARNING | sol-sniper | HELD wallet coins now 7TfUbhds,ADQc721B
+20:56:39 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:56:39 | WARNING | sol-sniper.ws | WebSocket subscribe rejected: {'code': -32701, 'message': 'connection timeout exceeded'} — switching endpoint
+20:56:40 | WARNING | sol-sniper.ws | WebSocket closed: received 1013 (try again later) Connection timeout exceeded; then sent 1013 (try again later) Connection timeout exceeded
+20:56:40 | INFO    | sol-sniper.ws | Reconnecting in 1.0s (endpoint index 1)...
+20:56:41 | WARNING | sol-sniper | TX ROUTE lightning — next buy and sell use this, then Jupiter only if it returns no signature
+20:56:41 | INFO    | sol-sniper | UI config update ['tx_route'] → filter_mode=opencopy trade_enabled=True
+20:56:41 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:56:41 | INFO    | sol-sniper.ws | Connecting to WebSocket: wss://api.mainnet-beta.solana.com
+20:56:42 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:56:42 | WARNING | sol-sniper.ws | WebSocket endpoint rejected connection (server rejected WebSocket connection: HTTP 429) — failover next
+20:56:42 | INFO    | sol-sniper.ws | Reconnecting in 1.8s (endpoint index 2)...
+20:56:44 | INFO    | sol-sniper.ws | Connecting to WebSocket: wss://solana-rpc.publicnode.com
+20:56:44 | INFO    | sol-sniper.ws | Subscribed to slots (id=2). Log subscribe is not used.
+20:56:44 | INFO    | sol-sniper.ws | WebSocket connected and subscriptions active (wss://solana-rpc.publicnode.com)
+20:56:45 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:56:45 | INFO    | sol-sniper | heartbeat slot=466117440 | events=212 decodes=8715 buys=0 fills=0 open=0 pnl=0.0000
+20:56:48 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:56:48 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:56:51 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:56:54 | INFO    | sol-sniper | heartbeat slot=466117480 | events=216 decodes=8875 buys=0 fills=0 open=0 pnl=0.0000
+20:56:55 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:56:58 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:56:59 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:57:01 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:57:01 | INFO    | sol-sniper.route | RPC cdn.fluxrpc.com did not connect (TimeoutError) — used cdn.fluxrpc.com
+20:57:01 | INFO    | sol-sniper.route | RPC cdn.fluxrpc.com did not connect (TimeoutError) — used cdn.fluxrpc.com
+20:57:03 | INFO    | sol-sniper | heartbeat slot=466117520 | events=220 decodes=9035 buys=0 fills=0 open=0 pnl=0.0000
+20:57:04 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:57:06 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:57:07 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:57:08 | INFO    | sol-sniper.exec_history | EXEC wallet sync 21 txs
+20:57:11 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:57:11 | INFO    | sol-sniper | heartbeat slot=466117560 | events=225 decodes=9235 buys=0 fills=0 open=0 pnl=0.0000
+20:57:14 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:57:17 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:57:18 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:57:20 | INFO    | sol-sniper | heartbeat slot=466117600 | events=229 decodes=9395 buys=0 fills=0 open=0 pnl=0.0000
+20:57:20 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:57:23 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:57:25 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:57:27 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:57:28 | INFO    | sol-sniper | heartbeat slot=466117640 | events=233 decodes=9555 buys=0 fills=0 open=0 pnl=0.0000
+20:57:30 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:57:30 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:57:33 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:57:36 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:57:36 | INFO    | sol-sniper | heartbeat slot=466117680 | events=237 decodes=9715 buys=0 fills=0 open=0 pnl=0.0000
+20:57:40 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:57:43 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:57:43 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:57:45 | INFO    | sol-sniper | heartbeat slot=466117720 | events=242 decodes=9915 buys=0 fills=0 open=0 pnl=0.0000
+20:57:46 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:57:49 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:57:52 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:57:54 | INFO    | sol-sniper | heartbeat slot=466117760 | events=246 decodes=10075 buys=0 fills=0 open=0 pnl=0.0000
+20:57:55 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:57:55 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:57:59 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:58:02 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:58:03 | INFO    | sol-sniper | heartbeat slot=466117800 | events=250 decodes=10235 buys=0 fills=0 open=0 pnl=0.0000
+20:58:05 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:58:08 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:58:11 | INFO    | sol-sniper | heartbeat slot=466117840 | events=255 decodes=10435 buys=0 fills=0 open=0 pnl=0.0000
+20:58:11 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:58:15 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:58:18 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:58:18 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:58:20 | INFO    | sol-sniper | heartbeat slot=466117880 | events=259 decodes=10595 buys=0 fills=0 open=0 pnl=0.0000
+20:58:21 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:58:24 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:58:25 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:58:27 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:58:28 | INFO    | sol-sniper | heartbeat slot=466117920 | events=263 decodes=10755 buys=0 fills=0 open=0 pnl=0.0000
+20:58:31 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:58:34 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:58:37 | INFO    | sol-sniper | heartbeat slot=466117960 | events=267 decodes=10915 buys=0 fills=0 open=0 pnl=0.0000
+20:58:37 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:58:40 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:58:43 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:58:45 | INFO    | sol-sniper | heartbeat slot=466118000 | events=272 decodes=11115 buys=0 fills=0 open=0 pnl=0.0000
+20:58:47 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:58:50 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:58:50 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+20:58:53 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:58:54 | INFO    | sol-sniper | heartbeat slot=466118040 | events=276 decodes=11275 buys=0 fills=0 open=0 pnl=0.0000
+20:58:56 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:58:59 | INFO    | sol-sniper.ledger | PNL daily=+0.0000 live=+0.0000 30d=+0.0000 total=+0.0000
+20:59:01 | INFO    | sol-sniper | WALLET panel 0.0154 SOL · 2 coin(s)
+20:59:02 | INFO    | sol-sniper | heartbeat slot=466118080 | events=280 decodes=11435 buys=0 fills=0 open=0 pnl=0.0000
+20:59:03 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+20:59:06 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+20:59:09 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+20:59:11 | INFO    | sol-sniper | heartbeat slot=466118120 | events=284 decodes=11595 buys=0 fills=0 open=0 pnl=0.0000
+20:59:12 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+20:59:15 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+20:59:19 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+20:59:20 | INFO    | sol-sniper | heartbeat slot=466118160 | events=289 decodes=11795 buys=0 fills=0 open=0 pnl=0.0000
+20:59:22 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+20:59:25 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+20:59:28 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+20:59:28 | INFO    | sol-sniper | heartbeat slot=466118200 | events=293 decodes=11955 buys=0 fills=0 open=0 pnl=0.0000
+20:59:31 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+20:59:34 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+20:59:37 | INFO    | sol-sniper | heartbeat slot=466118240 | events=297 decodes=12115 buys=0 fills=0 open=0 pnl=0.0000
+20:59:38 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+20:59:41 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+20:59:44 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+20:59:45 | INFO    | sol-sniper | heartbeat slot=466118280 | events=301 decodes=12275 buys=0 fills=0 open=0 pnl=0.0000
+20:59:47 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+20:59:50 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+20:59:54 | INFO    | sol-sniper | heartbeat slot=466118320 | events=306 decodes=12475 buys=0 fills=0 open=0 pnl=0.0000
+20:59:54 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+20:59:57 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:00:00 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:00:02 | INFO    | sol-sniper | heartbeat slot=466118360 | events=310 decodes=12635 buys=0 fills=0 open=0 pnl=0.0000
+21:00:03 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:00:06 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:00:10 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:00:11 | INFO    | sol-sniper | heartbeat slot=466118400 | events=314 decodes=12795 buys=0 fills=0 open=0 pnl=0.0000
+21:00:13 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:00:16 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:00:19 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:00:19 | INFO    | sol-sniper | heartbeat slot=466118440 | events=319 decodes=12995 buys=0 fills=0 open=0 pnl=0.0000
+21:00:22 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:00:26 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:00:28 | INFO    | sol-sniper | heartbeat slot=466118480 | events=323 decodes=13155 buys=0 fills=0 open=0 pnl=0.0000
+21:00:29 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:00:32 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:00:35 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:00:36 | INFO    | sol-sniper | heartbeat slot=466118520 | events=327 decodes=13315 buys=0 fills=0 open=0 pnl=0.0000
+21:00:38 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:00:41 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:00:45 | INFO    | sol-sniper | heartbeat slot=466118560 | events=331 decodes=13475 buys=0 fills=0 open=0 pnl=0.0000
+21:00:45 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:00:48 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:00:51 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:00:53 | INFO    | sol-sniper | heartbeat slot=466118600 | events=335 decodes=13635 buys=0 fills=0 open=0 pnl=0.0000
+21:00:54 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:00:57 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:01:01 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:01:02 | INFO    | sol-sniper | heartbeat slot=466118640 | events=340 decodes=13835 buys=0 fills=0 open=0 pnl=0.0000
+21:01:04 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:01:07 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:01:09 | INFO    | sol-sniper.route | TX lightning warm — ConnectTimeout
+21:01:10 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:01:10 | INFO    | sol-sniper | heartbeat slot=466118680 | events=344 decodes=13995 buys=0 fills=0 open=0 pnl=0.0000
+21:01:13 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:01:17 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:01:19 | INFO    | sol-sniper | heartbeat slot=466118720 | events=348 decodes=14155 buys=0 fills=0 open=0 pnl=0.0000
+21:01:20 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:01:23 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:01:26 | INFO    | sol-sniper.route | TX lightning warm — ConnectTimeout
+21:01:26 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:01:28 | INFO    | sol-sniper | heartbeat slot=466118760 | events=353 decodes=14355 buys=0 fills=0 open=0 pnl=0.0000
+21:01:29 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:01:33 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:01:36 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:01:36 | INFO    | sol-sniper | heartbeat slot=466118800 | events=357 decodes=14515 buys=0 fills=0 open=0 pnl=0.0000
+21:01:39 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:01:42 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:01:45 | INFO    | sol-sniper | heartbeat slot=466118840 | events=361 decodes=14675 buys=0 fills=0 open=0 pnl=0.0000
+21:01:45 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:01:49 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:01:52 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:01:53 | INFO    | sol-sniper | heartbeat slot=466118880 | events=365 decodes=14835 buys=0 fills=0 open=0 pnl=0.0000
+21:01:55 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:01:58 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:02:01 | INFO    | sol-sniper | heartbeat slot=466118920 | events=369 decodes=14995 buys=0 fills=0 open=0 pnl=0.0000
+21:02:01 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:02:05 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:02:08 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:02:10 | INFO    | sol-sniper | heartbeat slot=466118960 | events=374 decodes=15195 buys=0 fills=0 open=0 pnl=0.0000
+21:02:11 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:02:14 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:02:17 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:02:18 | INFO    | sol-sniper | heartbeat slot=466119000 | events=378 decodes=15355 buys=0 fills=0 open=0 pnl=0.0000
+21:02:20 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:02:24 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:02:27 | INFO    | sol-sniper | heartbeat slot=466119040 | events=382 decodes=15515 buys=0 fills=0 open=0 pnl=0.0000
+21:02:27 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:02:30 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:02:33 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:02:35 | INFO    | sol-sniper | heartbeat slot=466119080 | events=386 decodes=15675 buys=0 fills=0 open=0 pnl=0.0000
+21:02:36 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:02:40 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:02:43 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:02:44 | INFO    | sol-sniper | heartbeat slot=466119120 | events=391 decodes=15875 buys=0 fills=0 open=0 pnl=0.0000
+21:02:46 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:02:49 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:02:52 | INFO    | sol-sniper | heartbeat slot=466119160 | events=395 decodes=16035 buys=0 fills=0 open=0 pnl=0.0000
+21:02:52 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:02:56 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:02:59 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:03:01 | INFO    | sol-sniper | heartbeat slot=466119200 | events=399 decodes=16195 buys=0 fills=0 open=0 pnl=0.0000
+21:03:02 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:03:05 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:03:08 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:03:09 | INFO    | sol-sniper | heartbeat slot=466119240 | events=403 decodes=16355 buys=0 fills=0 open=0 pnl=0.0000
+21:03:11 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:03:14 | INFO    | sol-sniper.risk | OPEN live 7TfUbhds sol=0.0160 price=1.000000 source=opencopy
+21:03:14 | INFO    | sol-sniper.sqlite | open_mints now ['7TfUbhdswhBFXnGsnGLefNsCH4UV1MUGqpkfvQxAgzPw']
+21:03:14 | INFO    | sol-sniper.ledger | LEDGER OPEN Useful source=opencopy
+21:03:14 | INFO    | sol-sniper.ledger | LEDGER OPEN Useful tokens=1.511e+11 sol=0.015960 fees=0.000000 tip=0.000000 cost=0.015960 (~$2.39)
+21:03:14 | INFO    | sol-sniper.email | EMAIL queued [OpenCopy]: Order placed — Useful opened User [opencopy-caller]
+21:03:14 | WARNING | sol-sniper | HELD RESTORED Useful source=opencopy entry=0.0160 SOL — paid wallet lists it
+21:03:14 | INFO    | sol-sniper.risk | OPEN live ADQc721B sol=0.0160 price=1.000000 source=opencopy
+21:03:14 | INFO    | sol-sniper.sqlite | open_mints now ['7TfUbhdswhBFXnGsnGLefNsCH4UV1MUGqpkfvQxAgzPw', 'ADQc721BsNKQFBT8rBzixEy42YEnxJQMuTqhDqKupump']
+21:03:14 | INFO    | sol-sniper.ledger | LEDGER OPEN KIM source=opencopy
+21:03:14 | INFO    | sol-sniper.ledger | LEDGER OPEN KIM tokens=1.388e+10 sol=0.016002 fees=0.000000 tip=0.000000 cost=0.016002 (~$2.40)
+21:03:14 | INFO    | sol-sniper.email | EMAIL queued [OpenCopy]: Order placed — KIM opened User [opencopy-caller]
+21:03:14 | WARNING | sol-sniper | HELD RESTORED KIM source=opencopy entry=0.0160 SOL — paid wallet lists it
+21:03:15 | WARNING | sol-sniper | USERHOLDS OUT Useful — caller sold. Dropoff sells this trade if it is on
+21:03:15 | WARNING | sol-sniper | USERHOLDS OUT KIM — caller sold. Dropoff sells this trade if it is on
+21:03:15 | WARNING | sol-sniper.jupiter | Jupiter no market mint=7TfUbhds — not asking again for 30m
+21:03:15 | INFO    | sol-sniper.risk | EXIT no route mint=7TfUbhds count=1 hold=0s
+21:03:15 | WARNING | sol-sniper.mint_flags | FLAG DUST mint=7TfUbhds — Jupiter has no route. Saved. Next buy can start.
+21:03:15 | WARNING | sol-sniper.risk | ACTION QUOTE_DUST mint=7TfUbhds — Jupiter has no route. Left in the wallet. Not selling again.
+21:03:15 | INFO    | sol-sniper.sqlite | open_mints now ['ADQc721BsNKQFBT8rBzixEy42YEnxJQMuTqhDqKupump']
+21:03:15 | WARNING | sol-sniper.risk | DUST drop mint=7TfUbhds — not booked, PnL unchanged
+21:03:15 | INFO    | sol-sniper.risk | CLOSE live 7TfUbhds pnl=0.0000 SOL reason=DUST hold=1s
+21:03:15 | INFO    | sol-sniper.email | EMAIL sent [OpenCopy]: Order placed — Useful opened User [opencopy-caller]
+21:03:15 | INFO    | sol-sniper.email | EMAIL sent [OpenCopy]: Order placed — KIM opened User [opencopy-caller]
+21:03:15 | INFO    | sol-sniper | CALLOUT slot free — 1 trade(s) left the book
+21:03:16 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:03:18 | INFO    | sol-sniper | heartbeat slot=466119280 | events=408 decodes=16555 buys=0 fills=0 open=0 pnl=0.0000
+21:03:18 | INFO    | sol-sniper.exec_history | EXEC wallet list HTTP 429 api.mainnet-beta.solana.com
+21:03:19 | ERROR   | sol-sniper.ledger | LEDGER refuse fake close mint=7TfUbhds reason=DUST — tokens were not sold
+21:03:20 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:03:24 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
+21:03:26 | INFO    | sol-sniper | heartbeat slot=466119320 | events=412 decodes=16715 buys=0 fills=0 open=0 pnl=0.0000
+21:03:28 | INFO    | sol-sniper.ledger | PNL daily=+0.0154 live=+0.0000 30d=+0.0154 total=+0.0154
