@@ -228,7 +228,7 @@ def _num(value: Any) -> float:
 
 
 def _latest_open(user_name: str, wallet: str) -> Optional[Dict[str, Any]]:
-    port = _pump_json(f"https://frontend-api-v3.pump.fun/user-portfolio/{wallet}?filter=open")
+    port = _pump_json(f"https://frontend-api-v3.pump.fun/user-portfolio/{wallet}?filter=open&sortBy=RECENCY")
     positions = port.get("positions") if isinstance(port, dict) else None
     latest = None
     latest_ts = -1.0
@@ -1266,7 +1266,9 @@ def _caller_book(wallet: str) -> Dict[str, Any]:
         return book
     try:
         port = _pump_json(
-            f"https://frontend-api-v3.pump.fun/user-portfolio/{wallet}?filter=open",
+            # RECENCY: pump returns only 200 positions. Sorted by value (the default), a caller
+            # with hundreds of coins hides a small new open; by recency it is first.
+            f"https://frontend-api-v3.pump.fun/user-portfolio/{wallet}?filter=open&sortBy=RECENCY",
             timeout=0.6,
         )
     except Exception as exc:
@@ -1465,11 +1467,34 @@ def _pos_price(pos: Dict[str, Any], tok: Dict[str, Any]) -> Any:
     return None
 
 
+def _caller_bought(wallet: str, mint: str) -> bool:
+    """True when the live socket saw this caller's own buy (or sell) of this coin."""
+    stream = _stream_if_on()
+    if stream is None or not wallet or not mint:
+        return False
+    try:
+        return bool(stream.saw_trade(wallet, mint))
+    except Exception:
+        return False
+
+
+def _no_buy(pos: Dict[str, Any]) -> bool:
+    """pump recorded no buy by this caller: the tokens only arrived by transfer."""
+    try:
+        bought = float(pos.get("amountBought") or 0)
+        trades = int(pos.get("tradeCount") or 0)
+    except (TypeError, ValueError):
+        return False
+    return bought <= 0 and trades <= 0
+
+
 def _hold_rows(book: Dict[str, Any], tokens: Dict[str, Dict[str, Any]], cutoff: float) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     for pos in book.get("positions") or []:
         if not isinstance(pos, dict) or pos.get("isExited"):
             continue
+        if pos.get("potentialSpam") and not pos.get("userMarkedNonSpam"):
+            continue   # pump's own spam flag (airdropped junk); pump hides these too
         opened = _opened_ts(pos.get("openedAt"))
         if cutoff and (not opened or opened + 2 < cutoff):
             continue
@@ -1493,6 +1518,11 @@ def _hold_rows(book: Dict[str, Any], tokens: Dict[str, Dict[str, Any]], cutoff: 
             "positionHold": "OPEN",
             "botStatus": _oh_status.get(coin_mint, ""),
         })
+        if _no_buy(pos) and not _caller_bought(str(pos.get("walletAddress") or ""), coin_mint):
+            # Tokens only sent to the caller, never bought (dev airdrops a big caller to fake a buy).
+            # Listed so you see it; auto-copy skips it.
+            rows[-1]["positionHold"] = "TRANSFER"
+            rows[-1]["transfer"] = True
         _stamp_tape(rows[-1])
         _apply_live_row(rows[-1], pos)
     rows.sort(key=lambda item: float(item.get("openedAt") or 0), reverse=True)
@@ -1709,8 +1739,8 @@ def start_caller_stream() -> None:
         log.warning("caller stream did not start", exc_info=True)
 
 
-def stream_px_usd(mint: str, max_age: float = 5.0):
-    """(USD price, ts) from the last trade on the socket, or None."""
+def _stream_raw_usd(mint: str, max_age: float = 5.0):
+    """Curve price from the last socket trade in USD, before matching it to pump's scale."""
     stream = _stream_if_on()
     if stream is None:
         return None
@@ -1721,6 +1751,97 @@ def stream_px_usd(mint: str, max_age: float = 5.0):
     if sol <= 0:
         return None
     return hit[0] * sol, hit[1]
+
+
+def stream_px_usd(mint: str, max_age: float = 5.0):
+    """(USD price, ts) from the last trade on the socket, on pump's scale, or None."""
+    return _stream_raw_usd(mint, max_age)   # last trade's actual swap rate, already pump's price
+
+
+def _curve_factor(mint: str):
+    """Scale for the 0.2s curve read: learned from trades on the socket, else pump's own price."""
+    stream = _stream_if_on()
+    if stream is not None:
+        try:
+            factor = stream.curve_scale(mint)
+        except Exception:
+            factor = None
+        if factor is not None:
+            return factor
+    return _px_factor(mint)
+
+
+# Some coins (custom curves) read off by a fixed factor from the price pump shows and
+# sells at. Per coin, compare once in the background with pump's own market cap and
+# scale the live price by that ratio. Standard coins land on 1.0.
+_px_cal: Dict[str, tuple] = {}
+_px_cal_busy: Set[str] = set()
+_px_cal_seen: Dict[str, float] = {}    # last unconfirmed scale per coin
+_px_cal_retry: Dict[str, float] = {}   # when an unconfirmed scale was seen
+_PX_CAL_NOISE = 0.25     # within 25% is timing between the two reads, not a scale
+
+
+def _raw_live_px(mint: str):
+    """The 0.2s curve read, unscaled. (price, ts)."""
+    with _oh_px_lock:
+        price = _oh_px.get(mint)
+        at = float(_oh_px_at.get(mint) or 0)
+    return price, at
+
+
+def _px_calibrate(mint: str) -> None:
+    import time
+    try:
+        coin = _pump_json(f"https://frontend-api-v3.pump.fun/coins-v2/{mint}")
+        if not isinstance(coin, dict):
+            return
+        cap = float(coin.get("usd_market_cap") or 0)
+        supply = float(coin.get("total_supply") or 0) / 1e6
+        raw, _at = _raw_live_px(mint)
+        if cap <= 0 or supply <= 0 or not raw or raw <= 0:
+            return
+        factor = (cap / supply) / raw
+        # A pool read has no curve-timing noise, so a small gap there is real (newer PumpSwap
+        # pools price above their raw reserves). Curve reads keep the wide noise band.
+        with _oh_px_lock:
+            on_pool = _oh_px_src.get(mint) == "pool"
+        noise = 0.02 if on_pool else _PX_CAL_NOISE
+        if abs(factor - 1.0) <= noise:
+            factor = 1.0
+            _px_cal_seen.pop(mint, None)
+        else:
+            # A moving coin can look scaled for one read. Apply a scale only when two reads agree.
+            prev = _px_cal_seen.get(mint)
+            _px_cal_seen[mint] = factor
+            if prev is None or abs(prev - factor) / factor > 0.05:
+                _px_cal_retry[mint] = time.time()
+                return
+            if mint not in _px_cal or abs(_px_cal[mint][0] - factor) / factor > 0.05:
+                log.info("PRICE SCALE %s live x%.4f to match pump (2 reads agree)", mint[:8], factor)
+        _px_cal[mint] = (factor, time.time())
+    except Exception:
+        log.debug("price calibrate failed %s", mint[:8], exc_info=True)
+    finally:
+        _px_cal_busy.discard(mint)
+
+
+def _px_factor(mint: str):
+    """Scale from the live curve price to pump's price. None until the first check lands."""
+    import time
+    now = time.time()
+    hit = _px_cal.get(mint)
+    every = 120.0 if hit and hit[0] == 1.0 else 30.0
+    retry = _px_cal_retry.get(mint)
+    due = hit is None or now - hit[1] > every
+    if retry is not None:
+        due = now - retry > 3.0     # second read 3s later to confirm or reject the scale
+    if due and mint not in _px_cal_busy:
+        _px_cal_retry.pop(mint, None)
+        _px_cal_busy.add(mint)
+        threading.Thread(target=_px_calibrate, args=(mint,), name="px-cal", daemon=True).start()
+    if hit is None or now - hit[1] > 600:
+        return None
+    return hit[0]
 
 
 def stream_px_sol(mint: str, max_age: float = 5.0):
@@ -1818,6 +1939,7 @@ def _start_openholds_refresh() -> None:
     threading.Thread(target=_openholds_refresh_loop, name="openholds-refresh", daemon=True).start()
     threading.Thread(target=_oh_price_loop, name="openholds-price", daemon=True).start()
     threading.Thread(target=_oh_publish_loop, name="openholds-publish", daemon=True).start()
+    threading.Thread(target=_jup_loop, name="openholds-jupiter", daemon=True).start()
 
 
 def open_holds_snapshot() -> Dict[str, Any]:
@@ -3490,6 +3612,7 @@ _http_openhold = None
 _http_opensell = None
 _oh_px: Dict[str, float] = {}
 _oh_px_at: Dict[str, float] = {}
+_oh_px_src: Dict[str, str] = {}   # mint -> "curve" or "pool" (where the 0.2s read came from)
 _oh_px_lock = threading.Lock()
 _oh_snap_raw: bytes = b""
 _oh_snap_lock = threading.Lock()
@@ -3497,6 +3620,7 @@ _oh_amm: Dict[str, tuple] = {}
 _oh_dns: Dict[str, str] = {}
 _oh_sol: Dict[str, float] = {"usd": 0.0, "ts": 0.0}
 _PUMP = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"
+_MIN_VSOL_LAMPORTS = 30_000_000_000   # standard pump curve floor
 _AMM = "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA"
 _WSOL_MINT = "So11111111111111111111111111111111111111112"
 
@@ -3633,10 +3757,27 @@ def _best_px(mint: str):
     with _oh_px_lock:
         price = _oh_px.get(mint)
         at = float(_oh_px_at.get(mint) or 0)
-    hit = stream_px_usd(mint, max_age=120.0)
-    if hit and (not price or hit[1] >= at):
+        src = _oh_px_src.get(mint, "")
+    read = None
+    if price:
+        if src == "pool":
+            factor = _jup_factor(mint)        # Jupiter = pump's price for graduated coins
+            if factor is None:
+                factor = _px_factor(mint)     # pump's own price, checked against the pool
+            read = price * (factor if factor is not None else 1.0)
+        else:
+            factor = _curve_factor(mint)
+            if factor is not None:
+                read = price * factor
+    hit = _stream_raw_usd(mint, max_age=120.0)
+    if hit and (not read or hit[1] >= at):
         return hit[0], hit[1]
-    return price, at
+    if read:
+        return read, at
+    jup = _jup_px.get(mint)
+    if jup:
+        return jup[0], jup[1]   # no pool read yet: Jupiter's own price
+    return None, 0.0    # nothing matched yet: the row keeps pump's own numbers
 
 
 def _openhold_allowed(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -3647,6 +3788,8 @@ def _openhold_allowed(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         low = mint.lower()
         if not (low.startswith("pump") or low.endswith("pump")):
             continue
+        if row.get("transfer") and not _caller_bought(str(row.get("wallet") or ""), mint):
+            continue   # sent to the caller, not bought by them: never auto-copied
         try:
             unreal = float(row.get("unrealized_usd"))
             pct = float(row.get("percentage_usd") if row.get("percentage_usd") is not None else row.get("percentage"))
@@ -3782,30 +3925,41 @@ def _oh_accounts(keys):
         "method": "getMultipleAccounts",
         "params": [list(keys), {"encoding": "base64", "commitment": "processed"}],
     }
-    urls = []
-    for url in (
-        "https://api.mainnet-beta.solana.com",
-        "https://solana-rpc.publicnode.com",
-    ):
-        if url not in urls:
-            urls.append(url)
-    for url in urls:
+    import os
+    import time
+    now = time.time()
+    # Public nodes first, but skip one for a while after it fails (they rate-limit hard).
+    # Then the paid primary, capped so buys and sells keep most of its rate.
+    tries = []
+    for url in ("https://api.mainnet-beta.solana.com", "https://solana-rpc.publicnode.com"):
+        if _oh_rpc_cool.get(url, 0.0) <= now:
+            tries.append((url, 0.35, True))
+    primary = (os.environ.get("SOLANA_RPC_URL") or "").strip()
+    if primary.startswith("http") and "mainnet-beta.solana.com" not in primary:
+        if now - _oh_rpc_cool.get("_primary_last", 0.0) >= _OH_PRIMARY_GAP:
+            tries.append((primary, 0.8, False))
+    for url, wait, public in tries:
+        if not public:
+            _oh_rpc_cool["_primary_last"] = time.time()
+        got = None
         try:
-            status, text = _oh_rpc_post(url, payload, 0.35)
+            status, text = _oh_rpc_post(url, payload, wait)
+            if status == 200:
+                body = json.loads(text or "{}")
+                if isinstance(body, dict) and not body.get("error"):
+                    got = (body.get("result") or {}).get("value")
         except Exception:
-            continue
-        if status != 200:
-            continue
-        try:
-            body = json.loads(text or "{}")
-        except Exception:
-            continue
-        if not isinstance(body, dict) or body.get("error"):
-            continue
-        got = (body.get("result") or {}).get("value")
+            got = None
         if isinstance(got, list) and len(got) == len(keys):
             return got
+        if public:
+            _oh_rpc_cool[url] = time.time() + 15.0
     return None
+
+
+_oh_rpc_cool: Dict[str, float] = {}
+_OH_READ_MINTS = 48   # one getMultipleAccounts call: 2 accounts per coin
+_OH_PRIMARY_GAP = 0.5   # at most 2 price reads a second on the paid RPC
 
 
 def _oh_raw(item) -> bytes:
@@ -3822,7 +3976,9 @@ def _oh_raw(item) -> bytes:
 
 
 def _oh_listed_mints() -> List[str]:
-    mints: List[str] = []
+    """Open coins on the callers' books, most active first: coins this bot holds, then the most
+    recently traded or opened. Dead coins go last so they never crowd out a moving one."""
+    seen: Dict[str, str] = {}
     with _hold_lock:
         books = list(_hold_cache.values())
     for book in books:
@@ -3832,9 +3988,119 @@ def _oh_listed_mints() -> List[str]:
             if not isinstance(pos, dict) or pos.get("isExited"):
                 continue
             mint = str(pos.get("coinMint") or "")
-            if mint and mint not in mints:
-                mints.append(mint)
-    return mints[:40]
+            if not mint or len(mint) < 32 or mint.startswith("0x"):
+                continue
+            stamp = str(pos.get("updatedAt") or pos.get("openedAt") or "")
+            if stamp > seen.get(mint, ""):
+                seen[mint] = stamp
+    held = {m for m, st in list(_oh_status.items()) if st in ("HOLDING", "BUYING")}
+    ranked = sorted(seen, key=lambda m: seen[m], reverse=True)   # latest ISO time first
+    ranked.sort(key=lambda m: m not in held)                    # stable: held coins on top
+    return ranked[:150]
+
+
+_oh_pool_addr: Dict[str, str] = {}      # mint -> PumpSwap pool (pump's own record)
+_oh_pool_asked: Dict[str, float] = {}
+_jup_px: Dict[str, tuple] = {}          # mint -> (USD price, ts) from Jupiter
+_jup_fac: Dict[str, List[float]] = {}   # mint -> recent Jupiter / raw pool ratios
+
+
+def _oh_pool_lookup(mint: str) -> None:
+    """Newer PumpSwap pools are not at the derived address. pump's coin record names the pool."""
+    import time
+    now = time.time()
+    if mint in _oh_pool_addr or now - _oh_pool_asked.get(mint, 0.0) < 60:
+        return
+    _oh_pool_asked[mint] = now
+
+    def _run() -> None:
+        try:
+            coin = _pump_json(f"https://frontend-api-v3.pump.fun/coins-v2/{mint}", timeout=3.0)
+            pool = str((coin or {}).get("pump_swap_pool") or "") if isinstance(coin, dict) else ""
+            if len(pool) >= 32:
+                _oh_pool_addr[mint] = pool
+                log.info("POOL %s PumpSwap pool %s (from pump)", mint[:8], pool[:8])
+        except Exception:
+            log.debug("pool lookup failed %s", mint[:8], exc_info=True)
+
+    threading.Thread(target=_run, name="oh-pool", daemon=True).start()
+
+
+def _jup_prices(mints: List[str]) -> Dict[str, float]:
+    import json
+    import os
+    from src.execution.tx_route import sync_https
+    key = (os.environ.get("JUPITER_API_KEY") or "").strip()
+    ids = ",".join(mints[:50])
+    tries = []
+    if key:
+        tries.append((f"https://api.jup.ag/price/v3?ids={ids}", {"x-api-key": key}))
+    tries.append((f"https://lite-api.jup.ag/price/v3?ids={ids}", {}))
+    for url, headers in tries:
+        try:
+            status, text = sync_https("GET", url, timeout=1.5, headers=headers)
+        except TypeError:
+            status, text = sync_https("GET", url, timeout=1.5)
+        except Exception:
+            continue
+        if status != 200:
+            continue
+        body = json.loads(text or "{}")
+        out: Dict[str, float] = {}
+        for mint, item in (body or {}).items():
+            try:
+                usd = float((item or {}).get("usdPrice") or 0)
+            except (TypeError, ValueError, AttributeError):
+                continue
+            if usd > 0:
+                out[mint] = usd
+        return out
+    return {}
+
+
+def _jup_loop() -> None:
+    """Graduated coins: Jupiter's price (what pump shows) once a second, one batched call.
+    It sets the scale for the 0.5s pool read, so the row ticks fast and stays on pump's price."""
+    import time
+    pause = 1.0
+    while True:
+        time.sleep(pause)
+        try:
+            listed = _oh_listed_mints()
+            with _oh_px_lock:
+                pools = [m for m in listed if _oh_px_src.get(m) == "pool" or m in _oh_pool_addr]
+            if not pools:
+                pause = 1.0
+                continue
+            got = _jup_prices(pools[:50])
+            if not got:
+                pause = min(5.0, pause * 1.5)   # rate-limited: ease off
+                continue
+            pause = 1.0
+            now = time.time()
+            for mint, usd in got.items():
+                _jup_px[mint] = (usd, now)
+                with _oh_px_lock:
+                    raw = _oh_px.get(mint)
+                    at = float(_oh_px_at.get(mint) or 0)
+                if raw and now - at < 3.0:
+                    marks = _jup_fac.setdefault(mint, [])
+                    marks.append(usd / raw)
+                    del marks[:-5]
+        except Exception:
+            log.debug("jupiter price loop failed", exc_info=True)
+            pause = 3.0
+
+
+def _jup_factor(mint: str):
+    """Median Jupiter / pool ratio of the last few ticks, or None."""
+    import time
+    marks = _jup_fac.get(mint) or []
+    hit = _jup_px.get(mint)
+    if not marks or not hit or time.time() - hit[1] > 15:
+        return None
+    ordered = sorted(marks)
+    return ordered[len(ordered) // 2]
 
 
 def _oh_spot_once() -> None:
@@ -3845,7 +4111,9 @@ def _oh_spot_once() -> None:
         from solders.pubkey import Pubkey
     except Exception:
         return
-    mints = _oh_listed_mints()
+    # Coins the socket priced in the last 2s already have a fresher price than any read:
+    # skip them, so the RPC only fills the gaps (saves most of the paid bandwidth).
+    mints = [m for m in _oh_listed_mints() if _stream_raw_usd(m, 2.0) is None][:_OH_READ_MINTS]
     sol = _oh_sol_fast()
     if not mints or sol <= 0:
         return
@@ -3863,11 +4131,13 @@ def _oh_spot_once() -> None:
             curve = Pubkey.find_program_address([b"bonding-curve", bytes(mint_pk)], program)[0]
             keys.append(str(curve))
             slots.append((mint, "curve"))
-            auth = Pubkey.find_program_address([b"pool-authority", bytes(mint_pk)], program)[0]
-            pool = Pubkey.find_program_address(
-                [b"pool", (0).to_bytes(2, "little"), bytes(auth), bytes(mint_pk), bytes(wsol)],
-                amm_program,
-            )[0]
+            pool = _oh_pool_addr.get(mint)
+            if not pool:
+                auth = Pubkey.find_program_address([b"pool-authority", bytes(mint_pk)], program)[0]
+                pool = str(Pubkey.find_program_address(
+                    [b"pool", (0).to_bytes(2, "little"), bytes(auth), bytes(mint_pk), bytes(wsol)],
+                    amm_program,
+                )[0])
             keys.append(str(pool))
             slots.append((mint, "pool"))
         else:
@@ -3885,6 +4155,7 @@ def _oh_spot_once() -> None:
     for (mint, kind), item in zip(slots, values):
         parts.setdefault(mint, {})[kind] = _oh_raw(item)
     fresh: Dict[str, float] = {}
+    kinds: Dict[str, str] = {}
     extra_keys: List[str] = []
     extra_slots: List[tuple] = []
     now = time.time()
@@ -3895,12 +4166,17 @@ def _oh_spot_once() -> None:
         if len(curve_raw) >= 49 and curve_raw[48] == 0:
             virtual_token = struct.unpack_from("<Q", curve_raw, 8)[0]
             virtual_sol = struct.unpack_from("<Q", curve_raw, 16)[0]
-            if virtual_token > 0 and virtual_sol > 0:
+            # A standard pump curve never has under 30 virtual SOL. Below that the coin is a
+            # non-SOL / custom curve that pump prices differently, so keep pump's own price.
+            if virtual_token > 0 and virtual_sol >= _MIN_VSOL_LAMPORTS:
                 price_usd = ((virtual_sol / 1_000_000_000) / (virtual_token / 1_000_000)) * sol
                 if price_usd > 0:
                     fresh[mint] = price_usd
+                    kinds[mint] = "curve"
                     on_curve = True
         pool_raw = got.get("pool") or b""
+        if len(curve_raw) >= 49 and curve_raw[48] == 1 and len(pool_raw) < 203:
+            _oh_pool_lookup(mint)   # graduated, but the derived pool is empty: ask pump for it
         if len(pool_raw) >= 203:
             try:
                 base_mint = str(Pubkey.from_bytes(pool_raw[43:75]))
@@ -3953,6 +4229,7 @@ def _oh_spot_once() -> None:
         for mint, price in fresh.items():
             _oh_px[mint] = price
             _oh_px_at[mint] = now
+            _oh_px_src[mint] = kinds.get(mint, "pool")
 
 
 def _oh_price_loop() -> None:

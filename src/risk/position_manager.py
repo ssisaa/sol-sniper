@@ -192,6 +192,39 @@ def _pump_m5_now(mint: str):
 log = logging.getLogger("sol-sniper.risk")
 
 
+def _flag_if_worthless(mint: str, raw_tokens: int) -> None:
+    """Background: ask Jupiter what the whole bag sells for. Under 0.00001 SOL, save DUST so a
+    restart does not restore the coin again. A computed -100% alone is never trusted."""
+    import threading
+    import urllib.request
+
+    if not mint or raw_tokens <= 0:
+        return
+
+    def _run() -> None:
+        try:
+            url = (
+                "https://lite-api.jup.ag/swap/v1/quote?inputMint=" + mint
+                + "&outputMint=So11111111111111111111111111111111111111112"
+                + "&amount=" + str(int(raw_tokens)) + "&slippageBps=1000"
+            )
+            with urllib.request.urlopen(url, timeout=8) as resp:
+                body = json.loads(resp.read().decode() or "{}")
+            out = int(body.get("outAmount") or 0)
+            if body.get("errorCode") or out < 10_000:
+                from src.storage.mint_flags import mint_flag, note_dust_source, set_mint_flag
+                if mint_flag(mint) not in ("DUST", "NODUST"):
+                    note_dust_source(mint, "worthless")
+                    set_mint_flag(mint, "DUST")
+                    log.warning("FLAG DUST mint=%s — whole bag quotes %.7f SOL. Saved.", mint[:8], out / 1e9)
+            else:
+                log.warning("DUST check mint=%s — bag still quotes %.6f SOL, not flagged", mint[:8], out / 1e9)
+        except Exception:
+            log.debug("worthless check failed %s", mint[:8], exc_info=True)
+
+    threading.Thread(target=_run, name="dust-check", daemon=True).start()
+
+
 class PositionMode(str, Enum):
     PAPER = "paper"
     LIVE = "live"
@@ -938,7 +971,7 @@ class PositionManager:
                     from src.storage.mint_flags import dust_source, mint_flag
                     err = str(getattr(pos, "_last_sell_error", "") or "")
                     src = dust_source(pos.mint) if mint_flag(pos.mint) == "DUST" else ""
-                    dead = src in ("manual", "jupiter", "frozen") or (
+                    dead = src in ("manual", "jupiter", "frozen", "worthless") or (
                         not pump_mint(pos.mint)
                         and ("NO_ROUTES" in err.upper() or "NOT_TRADABLE" in err.upper() or "NO ROUTES" in err.upper())
                     )
@@ -1039,7 +1072,7 @@ class PositionManager:
             elif manual == "DUST" and pos.mode == PositionMode.LIVE:
                 from src.storage.mint_flags import dust_source, set_mint_flag
                 src = dust_source(pos.mint)
-                if src not in ("manual", "jupiter", "frozen"):
+                if src not in ("manual", "jupiter", "frozen", "worthless"):
                     set_mint_flag(pos.mint, "CLEAR")
                     pos._dust_value = False  # type: ignore[attr-defined]
                     pos._quote_giveup = False  # type: ignore[attr-defined]
@@ -1568,6 +1601,7 @@ class PositionManager:
                     "ACTION DUST leave mint=%s worth≈%.6f SOL since %+.1f%% — no swap, next coin",
                     pos.mint[:8], worth, ret * 100,
                 )
+                _flag_if_worthless(pos.mint, int(pos.tokens or 0))
                 self._release_hold_mint(pos.mint)
                 t = await self.close_position(pos_id, "dust_left", exit_price=0.0, frac=1.0)
                 if t:
@@ -1971,6 +2005,7 @@ class PositionManager:
 
             if action == "dust_drop":
                 log.warning("ACTION DUST leave mint=%s — no swap, next coin", pos.mint[:8])
+                _flag_if_worthless(pos.mint, int(pos.tokens or 0))
                 self._release_hold_mint(pos.mint)
                 t = await self.close_position(pos_id, "dust_left", exit_price=0.0, frac=1.0)
                 if t:

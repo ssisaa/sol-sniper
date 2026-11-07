@@ -1131,8 +1131,9 @@ class TradeLedger:
         notify: bool = True,
     ) -> Optional[LedgerEntry]:
         if (reason or "") in ("empty_wallet", "not_in_wallet", "DUST", "dust_left", "dust_unsellable"):
-            log.error(
-                "LEDGER refuse fake close mint=%s reason=%s — tokens were not sold",
+            # Expected: dust / not-in-wallet is not a sale, so it is never booked. Not a fault.
+            log.info(
+                "LEDGER no sale booked mint=%s reason=%s — left in the wallet, PnL unchanged",
                 (mint or "")[:8], reason,
             )
             return None

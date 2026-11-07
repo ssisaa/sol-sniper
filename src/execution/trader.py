@@ -508,11 +508,15 @@ class Trader:
                     latency_ms=(time.perf_counter() - t0) * 1000,
                 )
             else:
-                reserve = 0.00153  # 0.0015 rent left in the wallet, 0.00003 buy fee
-                spendable = max(0.0, bal - reserve)
+                # 0.00204 token-account rent, 0.0009 wallet rent floor, 0.00003 tx fee.
+                # Pump also takes ~1% on top of sol_in, so leave 2% headroom.
+                reserve = 0.00297
+                spendable = max(0.0, (bal - reserve) / 1.02)
+                if spendable < 0.001:
+                    spendable = 0.0
                 if spendable <= 0:
                     log.warning(
-                        "BUY skip — SOL %.4f cannot cover rent 0.0015 and fee 0.00003",
+                        "BUY skip — SOL %.4f cannot cover token-account rent, fees and the buy",
                         bal,
                     )
                     self._inflight_mint = ""

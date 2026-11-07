@@ -2770,7 +2770,7 @@ function openHoldTable(g, mode){
       <td data-f="pctu" class="${tone(row.percentage_usd)}">${pctn(row.percentage_usd)}</td>
       <td data-f="pct" class="${tone(row.percentage)}">${pctn(row.percentage)}</td>
       <td data-f="real" class="${tone(row.realized_pnl_usd)}">${money(row.realized_pnl_usd)}</td>
-      <td class="v g"><strong>OPEN</strong></td>
+      <td class="${row.positionHold==='TRANSFER'?'muted':'v g'}" title="${row.positionHold==='TRANSFER'?'Tokens were sent to this caller, not bought. Auto-copy skips it.':''}"><strong>${row.positionHold||'OPEN'}</strong></td>
       <td class="${statusCls}" data-f="st"><strong>${row.botStatus||'—'}</strong></td>
       <td class="keep" data-f="age" data-ts="${Number(row.openedAt)||0}">${ageOf(row.openedAt)}</td>
       <td data-f="m5" class="${m5n==null?'muted':(m5n<0?'v r':'v g')}">${m5txt}</td>
@@ -2782,7 +2782,7 @@ function openHoldTable(g, mode){
     </tr>`;
   }).join('');
   const errText=(g.error==='HTTPStatusError'||String(g.error||'').indexOf('HTTP ')===0)?'checking':(g.error||'');
-  const body=rows||`<tr><td colspan="15" class="muted">${errText||(mode==='all'?'No coin older than 1 hour.':'No coin opened in the last hour.')}</td></tr>`;
+  const body=rows||`<tr><td colspan="15" class="muted">${errText||(mode==='all'?'No coin older than 1 hour.':'No coin opened in the last hour. Watching live — a new open shows here the moment it happens.')}</td></tr>`;
   const walletUsd=(g.totalValueUsd==null||g.totalValueUsd==='')?'':' - $'+Number(g.totalValueUsd).toLocaleString(undefined,{maximumFractionDigits:0});
   const title=profile?`<a href="${profile}" target="_blank" rel="noopener">${who}</a><span data-f="wusd">${walletUsd}</span>`:`${who}<span data-f="wusd">${walletUsd}</span>`;
   const whoEsc=String(who).replace(/"/g,'');
@@ -2945,8 +2945,18 @@ function ohFlash(cell, prev, next){
   if(!cell || !isFinite(prev) || !isFinite(next) || prev===next) return;
   ohPulse(cell, next>prev?1:-1);
 }
+function ohCell(tr, field){
+  // Cell lookups are cached on the row: the 100ms patch must not search the table each time.
+  const cache=tr._ohc||(tr._ohc={});
+  let cell=cache[field];
+  if(cell===undefined || (cell && !cell.isConnected)){
+    cell=tr.querySelector('[data-f="'+field+'"]');
+    cache[field]=cell;
+  }
+  return cell;
+}
 function patchOpenHoldCell(tr, field, text, cls, prev, next, pulse){
-  const cell=tr.querySelector('[data-f="'+field+'"]');
+  const cell=ohCell(tr, field);
   if(!cell) return;
   if(cls!=null){
     cell.classList.remove('v','g','r','muted');
@@ -2999,6 +3009,8 @@ function patchOpenHoldsLive(groups){
     return Math.floor(h/24)+'d';
   };
   let patched=0;
+  const trMap=new Map();
+  box.querySelectorAll('tr[data-oh]').forEach(tr=>trMap.set(tr.getAttribute('data-oh'), tr));
   (groups||[]).forEach(g=>{
     const who=g.userName||'caller';
     const block=box.querySelector('.oh-block');
@@ -3011,14 +3023,14 @@ function patchOpenHoldsLive(groups){
     });
     (g.rows||[]).forEach(row=>{
       const mint=row.coinMint||'';
-      const tr=box.querySelector('tr[data-oh="'+who.replace(/"/g,'')+'|'+mint+'"]');
+      const tr=trMap.get(who.replace(/"/g,'')+'|'+mint);
       if(!tr) return;
       patched++;
-      const prevPx=Number(tr.querySelector('[data-f="price"]')&&tr.querySelector('[data-f="price"]').dataset.n);
+      const priceCell=ohCell(tr,'price');
+      const prevPx=Number(priceCell&&priceCell.dataset.n);
       const px=Number(row.token_price);
       const beat=Number(row.px_at||0);
       const pulse=beat>0 && beat!==Number(tr.dataset.beat||0);
-      const priceCell=tr.querySelector('[data-f="price"]');
       if(priceCell){
         const text=num(row.token_price);
         const changed=priceCell.textContent!==text;
@@ -3036,17 +3048,18 @@ function patchOpenHoldsLive(groups){
       patchOpenHoldCell(tr,'pct',pctn(row.percentage),tone(row.percentage),numOr(tr.dataset.pct),numOr(row.percentage),pulse);
       patchOpenHoldCell(tr,'real',money(row.realized_pnl_usd),tone(row.realized_pnl_usd),NaN,NaN);
       const st=row.botStatus||'';
-      const stCell=tr.querySelector('[data-f="st"]');
+      const stCell=ohCell(tr,'st');
       if(stCell && stCell.textContent!==(st||'—')){
         stCell.className=st==='MISSED'?'v r':(st==='HOLDING'||st==='BUYING'?'v g':'muted');
         stCell.innerHTML='<strong>'+(st||'—')+'</strong>';
       }
-      tr.className=st==='HOLDING'?'oh-hold':(st==='BUYING'?'oh-buy':'');
+      const rowCls=st==='HOLDING'?'oh-hold':(st==='BUYING'?'oh-buy':'');
+      if(tr.className!==rowCls) tr.className=rowCls;
       tr.dataset.usd=row.unrealized_usd==null?'':String(row.unrealized_usd);
       tr.dataset.pctu=row.percentage_usd==null?'':String(row.percentage_usd);
       tr.dataset.pct=row.percentage==null?'':String(row.percentage);
       if(pulse) tr.dataset.beat=String(beat);
-      const age=tr.querySelector('[data-f="age"]');
+      const age=ohCell(tr,'age');
       if(age){
         age.dataset.ts=String(Number(row.openedAt)||0);
         const text=ageOf(row.openedAt);
@@ -3118,7 +3131,10 @@ function paintOpenHolds(groups, err, picked, callers, watch){
   });
   const keys=tables.map(g=>{
     const who=g.userName||'caller';
-    return (g._mode||'pin')+'|'+(g.rows||[]).map(row=>who+'|'+(row.coinMint||'')).join(',');
+    // An empty table also changes with its message (checking -> loaded), or it stays on "checking".
+    const empty=(g.rows||[]).length?'':('|'+who+'|'+(g.ok===false?'e:'+(g.error||'checking'):'ok'));
+    const holds=(g.rows||[]).map(row=>who+'|'+(row.coinMint||'')+'|'+(row.positionHold||'')).join(',');
+    return (g._mode||'pin')+'|'+holds+empty;
   }).join('\n');
   if(box.dataset.keys===keys && box.querySelector('tr[data-oh]')){
     patchOpenHoldsLive(tables);

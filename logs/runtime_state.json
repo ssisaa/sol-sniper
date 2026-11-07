@@ -47,7 +47,7 @@
   "max_m5_pct": 200.0,
   "rugcheck_enabled": false,
   "tx_route": "lightning",
-  "fast_pace_sell": false,
-  "fast_pace_max_sol": 0.0,
-  "fast_pace_margin_pct": 5.0
+  "fast_pace_sell": true,
+  "fast_pace_max_sol": 0.015,
+  "fast_pace_margin_pct": 10.0
 }

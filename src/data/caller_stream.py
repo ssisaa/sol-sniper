@@ -31,8 +31,17 @@ PUMP_PROGRAM = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"
 _TRADE_EVENT = bytes.fromhex("bddb7fd34ee661ee")
 # A caller balance under this many tokens is a full exit (dust left by rounding).
 _DUST_TOKENS = 1.0
-_MAX_MINTS = 80
+_MAX_MINTS = 150
 _MAX_WALLETS = 60
+_SUBS_PER_TICK = 4   # logsSubscribe requests per 0.5s on the RPC fallback
+_MIN_VSOL = 30.0     # a standard pump curve never holds less virtual SOL
+_MIN_OPEN_SOL = 0.01  # a caller buy smaller than this does not count as a new open
+# PumpPortal is ~0.1s ahead of RPC logs but skips some trades (measured ~40%), so both run
+# together: PumpPortal for speed, public RPC logs on the coins that matter to fill the gaps.
+try:   # RPC logs: held + caller-open coins first, then the most active listed ones
+    _RPC_MAX_MINTS = max(5, int(__import__("os").environ.get("SOL_SNIPER_STREAM_RPC_MINTS") or 40))
+except ValueError:
+    _RPC_MAX_MINTS = 40
 
 
 def _b58(raw: bytes) -> str:
@@ -125,6 +134,7 @@ class CallerStream:
         self._pos_mints: Set[str] = set()           # our own open copies, always kept
         self._pos_wallets: Dict[str, str] = {}      # callers behind our open copies, always kept
         self._px: Dict[str, Tuple[float, float]] = {}   # mint -> (SOL per token, ts)
+        self._scale: Dict[str, List[float]] = {}        # mint -> recent trade/curve price ratios
         # (wallet, mint) -> caller position seen on the socket
         self._opens: Dict[Tuple[str, str], Dict[str, Any]] = {}
         # (wallet, mint) -> ts of the full exit
@@ -138,6 +148,14 @@ class CallerStream:
         self._mode = ""
         self._seen_sigs: Dict[str, float] = {}
         self._portal_refused = False
+        self._portal_retry_at = 0.0
+        self._mint_order: List[str] = []             # self._mints, most active first
+        self._up: Dict[str, bool] = {}               # "pumpportal" / "rpc-logs" -> connected
+        self._seen_trades: Dict[Tuple[str, str, str, int], Tuple[float, str, float]] = {}
+        # PumpPortal's solAmount assumes a standard curve; on custom curves it is wrong (seen 5-44%).
+        # Per coin: did PumpPortal's SOL match the on-chain TradeEvent? Its price is used only then.
+        self._pp_trust: Dict[str, List[bool]] = {}
+        self._paid_fails = 0
         self._targets: Optional[Callable[[], Tuple[Dict[str, str], Iterable[str]]]] = None
 
     # ---------- wiring ----------
@@ -165,6 +183,15 @@ class CallerStream:
         threading.Thread(target=self._run, name="caller-stream", daemon=True).start()
 
     # ---------- reads ----------
+    def curve_scale(self, mint: str) -> Optional[float]:
+        """Real trade price over curve price for this coin, from recent trades. 1.0 on a standard
+        curve. None until 3 trades with amounts were seen."""
+        samples = sorted(self._scale.get(str(mint or "")) or [])
+        if len(samples) < 3:
+            return None
+        mid = samples[len(samples) // 2]
+        return 1.0 if abs(mid - 1.0) <= 0.08 else mid
+
     def price_sol(self, mint: str, max_age: float = 5.0) -> Optional[Tuple[float, float]]:
         hit = self._px.get(str(mint or ""))
         if not hit:
@@ -183,6 +210,12 @@ class CallerStream:
                     continue
                 out.append(dict(row, mint=mint, wallet=w))
         return out
+
+    def saw_trade(self, wallet: str, mint: str) -> bool:
+        """True when the socket saw this wallet buy or fully sell this coin (its own signed trade)."""
+        key = (str(wallet or ""), str(mint or ""))
+        with self._lock:
+            return key in self._opens or key in self._exits
 
     def exited(self, wallet: str, mint: str, after: float = 0.0) -> bool:
         """True when the socket saw this caller sell this coin down to nothing after `after`."""
@@ -238,13 +271,23 @@ class CallerStream:
             for w, u in self._pos_wallets.items():
                 merged.setdefault(w, u)
             self._wallets = merged
-            wanted = [str(m) for m in (mints or []) if m]
-            # Coins a caller bought on the socket stay watched while that caller holds them.
-            wanted += [m for (_w, m) in self._opens.keys()]
+            # Coins a caller just bought on the socket first, then the ranked OpenHolds coins.
+            wanted = [m for (_w, m) in self._opens.keys()]
+            wanted += [str(m) for m in (mints or []) if m and str(m) not in wanted]
             keep = set(wanted[:_MAX_MINTS])
             self._mints = keep
+            self._mint_order = wanted[:_MAX_MINTS]
 
     async def _forever(self) -> None:
+        await asyncio.gather(self._loop("pumpportal"), self._loop("rpc-logs"))
+
+    def _set_up(self, name: str, on: bool) -> None:
+        self._up[name] = on
+        live = [k for k, v in self._up.items() if v]
+        self._connected = bool(live)
+        self._mode = "+".join(sorted(live, reverse=True))
+
+    async def _loop(self, name: str) -> None:
         import os
 
         backoff = 1.0
@@ -254,18 +297,29 @@ class CallerStream:
                 await asyncio.sleep(1.0)
                 continue
             key = (os.environ.get("PUMPPORTAL_API_KEY") or "").strip()
-            use_portal = bool(key) and not self._portal_refused
+            if name == "pumpportal":
+                if not key:
+                    return
+                if self._portal_refused:
+                    await asyncio.sleep(max(1.0, self._portal_retry_at - time.time()))
+                    self._portal_refused = False
+                    continue
             try:
-                if use_portal:
+                if name == "pumpportal":
                     await self._run_portal(key)
                 else:
                     await self._run_rpc()
                 backoff = 1.0
             except Exception as exc:
-                self._connected = False
-                log.warning("CALLER STREAM %s dropped: %s — reconnect in %.0fs", self._mode or "socket", exc, backoff)
+                text = str(exc)
+                if "429" in text or "1013" in text or "Rate limit" in text:
+                    # Public node rate limit: back off hard, or it keeps refusing.
+                    backoff = max(backoff, 10.0)
+                log.warning("CALLER STREAM %s dropped: %s — reconnect in %.0fs", name, text[:160], backoff)
                 await asyncio.sleep(backoff)
-                backoff = min(15.0, backoff * 2)
+                backoff = min(60.0, backoff * 2)
+            finally:
+                self._set_up(name, False)
 
     async def _sync_loop_targets(self):
         self._refresh_targets()
@@ -278,8 +332,7 @@ class CallerStream:
         async with websockets.connect(
             f"{WS_URL}?api-key={key}", open_timeout=10, ping_interval=15, ping_timeout=10, max_size=2**20,
         ) as ws:
-            self._connected = True
-            self._mode = "pumpportal"
+            self._set_up("pumpportal", True)
             sub_w: Set[str] = set()
             sub_m: Set[str] = set()
             log.info("CALLER STREAM connected — PumpPortal")
@@ -312,26 +365,49 @@ class CallerStream:
                 if not isinstance(msg, dict):
                     continue
                 if msg.get("mint"):
+                    msg["_src"] = "pp"
                     self._on_trade(msg)
                 elif "only available" in str(msg.get("message") or msg.get("errors") or ""):
                     # Key missing funds. Use the RPC socket instead of sitting on a silent feed.
-                    log.warning("CALLER STREAM PumpPortal refused the trade feed (%s) — using RPC logs", msg)
+                    log.warning("CALLER STREAM PumpPortal refused the trade feed (%s) — RPC logs only for 10 min", msg)
                     self._portal_refused = True
+                    self._portal_retry_at = time.time() + 600.0
                     return
 
     async def _run_rpc(self) -> None:
         """One logsSubscribe per caller wallet and per coin. TradeEvent comes in the log lines."""
         import os
+
+        url = (os.environ.get("SOL_SNIPER_STREAM_WSS") or "").strip()
+        if not url:
+            # Public node by default: logsSubscribe pushes every transaction's full logs, which
+            # costs gigabytes an hour on a paid plan billed by bandwidth. Paid only on opt-in.
+            url = RPC_WSS
+            primary = (os.environ.get("SOLANA_RPC_URL") or "").strip()
+            opt_in = (os.environ.get("SOL_SNIPER_STREAM_PAID") or "").strip().lower() in ("1", "true", "yes")
+            paid = primary.startswith("http") and "mainnet-beta.solana.com" not in primary
+            if opt_in and paid and self._paid_fails < 3:
+                url = "ws" + primary[4:]
+            elif opt_in:
+                self._paid_fails = 0
+        try:
+            await self._run_rpc_url(url)
+            self._paid_fails = 0
+        except Exception:
+            if url != RPC_WSS:
+                self._paid_fails += 1
+            raise
+
+    async def _run_rpc_url(self, url: str) -> None:
         import websockets
 
-        url = (os.environ.get("SOL_SNIPER_STREAM_WSS") or RPC_WSS).strip()
         async with websockets.connect(url, open_timeout=10, ping_interval=20, ping_timeout=15, max_size=2**22) as ws:
-            self._connected = True
-            self._mode = "rpc-logs"
-            log.info("CALLER STREAM connected — RPC logs %s", url)
+            self._set_up("rpc-logs", True)
+            log.info("CALLER STREAM connected — RPC logs %s", url.split("?")[0])
             by_key: Dict[str, int] = {}        # wallet or mint -> subscription id
             pending: Dict[int, str] = {}       # request id -> key
             unsub_ids: Set[int] = set()
+            refused: Dict[str, float] = {}     # key -> time it may be asked again
             next_id = 10
             last_sync = 0.0
             while True:
@@ -339,9 +415,21 @@ class CallerStream:
                 if now - last_sync >= 0.5:
                     last_sync = now
                     want_w, want_m = await self._sync_loop_targets()
+                    with self._lock:
+                        held_m = set(self._pos_mints)
+                        order = list(self._mint_order)
+                    # Few subscriptions: every one streams each trade's full logs.
+                    keep = list(held_m) + [m for m in order if m not in held_m]
+                    want_m = set(keep[:_RPC_MAX_MINTS]) & (want_m | held_m)
                     want = want_w | want_m
                     have = set(by_key) | set(pending.values())
-                    for key in sorted(want - have):
+                    with self._lock:
+                        held = set(self._pos_mints)
+                    # Callers first, then coins we hold, then the rest. Few per tick so
+                    # the public node does not rate-limit the socket.
+                    todo = [k for k in want - have if refused.get(k, 0.0) <= now]
+                    todo.sort(key=lambda k: (k not in want_w, k not in held, k))
+                    for key in todo[:_SUBS_PER_TICK]:
                         next_id += 1
                         pending[next_id] = key
                         await ws.send(json.dumps({
@@ -370,6 +458,7 @@ class CallerStream:
                     if key is not None and isinstance(msg.get("result"), int):
                         by_key[key] = msg["result"]
                     elif key is not None:
+                        refused[key] = now + 30.0
                         log.debug("logsSubscribe refused for %s: %s", key[:8], msg.get("error"))
                     unsub_ids.discard(rid)
                     continue
@@ -386,6 +475,7 @@ class CallerStream:
                         self._seen_sigs = {k: v for k, v in self._seen_sigs.items() if v >= cut}
                 for trade in decode_trade_logs(value.get("logs") or []):
                     trade["signature"] = sig
+                    trade["_src"] = "rl"
                     self._on_trade(trade)
 
     def _on_trade(self, msg: Dict[str, Any]) -> None:
@@ -394,14 +484,44 @@ class CallerStream:
         trader = str(msg.get("traderPublicKey") or "")
         kind = str(msg.get("txType") or "").lower()
         sol = _f(msg.get("solAmount")) or 0.0
+        sig = str(msg.get("signature") or "")
+        src = str(msg.get("_src") or "")
         tokens = _f(msg.get("tokenAmount")) or 0.0
+        if sig:
+            # Same trade from PumpPortal and from RPC logs: count it once (first one wins).
+            # Keyed on tokens: both sources agree on them; PumpPortal's SOL can differ.
+            tkey = (sig, mint, kind, int(round(tokens)))
+            with self._lock:
+                prev = self._seen_trades.get(tkey)
+                if prev is None:
+                    self._seen_trades[tkey] = (now, src, sol)
+                    if len(self._seen_trades) > 20000:
+                        cut = now - 120
+                        self._seen_trades = {k: v for k, v in self._seen_trades.items() if v[0] >= cut}
+            if prev is not None:
+                if src == "rl" and prev[1] == "pp":
+                    self._pp_checked(mint, trader, kind, prev[2], sol, tokens, now)
+                return
         v_sol = _f(msg.get("vSolInBondingCurve"))
         v_tok = _f(msg.get("vTokensInBondingCurve"))
+        # The real price is what this trade actually swapped at (pump and Jupiter price there).
+        # Reserves give the same number only on a standard curve; custom curves differ.
         price = 0.0
-        if v_sol and v_tok and v_sol > 0 and v_tok > 0:
-            price = v_sol / v_tok
-        elif sol > 0 and tokens > 0:
-            price = sol / tokens
+        if src == "pp":
+            # PumpPortal's reserves are a standard-curve estimate, not the chain: no curve price,
+            # no scale samples; its trade price only once it has matched the chain for this coin.
+            if sol >= 0.001 and tokens > 0 and self._pp_trusted(mint):
+                price = sol / tokens
+        else:
+            curve = (v_sol / v_tok) if (v_sol and v_tok and v_sol > 0 and v_tok > 0) else 0.0
+            if sol >= 0.001 and tokens > 0:
+                price = sol / tokens
+                if curve > 0:
+                    samples = self._scale.setdefault(mint, [])
+                    samples.append(price / curve)
+                    del samples[:-7]
+            elif curve > 0 and v_sol >= _MIN_VSOL and self.curve_scale(mint) in (None, 1.0):
+                price = curve
         if price > 0:
             self._px[mint] = (price, now)
         self._trades += 1
@@ -420,7 +540,10 @@ class CallerStream:
         }
         with self._lock:
             row = self._opens.get(key)
-            if kind == "buy":
+            if kind == "buy" and row is None and sol < _MIN_OPEN_SOL:
+                # 0-SOL / dust "buys" are bait; they are not a caller entry to copy.
+                pass
+            elif kind == "buy":
                 if row is None:
                     row = {"first_ts": now, "sol": 0.0, "tokens": 0.0, "user": user}
                     self._opens[key] = row
@@ -463,6 +586,28 @@ class CallerStream:
                 fn(event)
             except Exception:
                 log.debug("caller stream listener failed", exc_info=True)
+
+    def _pp_trusted(self, mint: str) -> bool:
+        marks = self._pp_trust.get(mint) or []
+        return len(marks) >= 2 and all(marks[-3:])
+
+    def _pp_checked(self, mint: str, trader: str, kind: str, pp_sol: float, sol: float, tokens: float, now: float) -> None:
+        """The on-chain copy of a trade PumpPortal sent first: grade PumpPortal, keep the true price."""
+        if sol >= 0.001:
+            marks = self._pp_trust.setdefault(mint, [])
+            marks.append(abs(pp_sol - sol) <= 0.005 * sol)
+            del marks[:-4]
+            if len(self._pp_trust) > 2000:
+                self._pp_trust = dict(list(self._pp_trust.items())[-1000:])
+            if tokens > 0:
+                hit = self._px.get(mint)
+                if not hit or hit[1] <= now:
+                    self._px[mint] = (sol / tokens, now)
+        if kind == "buy" and abs(pp_sol - sol) > 1e-9:
+            with self._lock:
+                row = self._opens.get((trader, mint))
+                if row is not None:
+                    row["sol"] = max(0.0, float(row.get("sol") or 0) + (sol - pp_sol))
 
     def _confirm_exit(self, event: Dict[str, Any]) -> None:
         wallet, mint = event["wallet"], event["mint"]

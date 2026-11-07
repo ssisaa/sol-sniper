@@ -1870,6 +1870,9 @@ async def live_feed_demo(
                 marked = openhold_status(mint) == "HOLDING"
                 side = (entry.side or "").upper() if entry else ""
                 ui, _raw_held = held[mint]
+                if side == "SELL" and time.time() - float(getattr(entry, "ts", 0) or 0) < 180:
+                    # Just sold. A lagging wallet read still lists it; do not bring the trade back.
+                    continue
                 if mint not in open_mints and (marked or side in ("BUY", "SELL")):
                     wanted.append(mint)
             for mint, entry in latest_side.items():
@@ -4752,7 +4755,7 @@ async def dayscalp_loop(
                 try:
                     from src.storage.mint_flags import dust_source, mint_flag
                     flag = mint_flag(pos.mint)
-                    dusty = dust_source(pos.mint) in ("manual", "jupiter", "frozen") if flag == "DUST" else False
+                    dusty = dust_source(pos.mint) in ("manual", "jupiter", "frozen", "worthless") if flag == "DUST" else False
                 except Exception:
                     dusty = bool(getattr(pos, "_dust_value", False))
                 if dusty:
