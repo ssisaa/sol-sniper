@@ -43,6 +43,10 @@ _KEEP_LOGS = {
     "exit_presets.json",
     "invested.json",
     "equity_pnl.json",
+    # Settings, not session history: Clear session must not drop the OpenHolds callers you picked
+    # or the caller name/wallet directory (Trade History CallUser links use it).
+    "openholds_watch.json",
+    "callout_users.json",
 }
 
 
@@ -61,6 +65,22 @@ def clear_session_logs() -> None:
     clear_actions()
 
 
+# Actions named after a trade source. The Action column shows the source picked in Live Controls
+# instead, so an OpenCopy run reads OPENCOPY, not the CALLOUT scan loop it shares.
+_SOURCE_TAGS = {"CALLOUT", "CALLOUTS", "OPENHOLDS", "OPENHOLD", "OPENCOPY", "MAYHEM", "DAYSCALP", "LAUNCH", "PREDICT"}
+
+
+def _source_label(action: str) -> str:
+    if str(action or "").upper() not in _SOURCE_TAGS:
+        return action
+    try:
+        from src.config.runtime import get_config
+        mode = str(get_config().filter_mode or "").strip()
+    except Exception:
+        return action
+    return mode.upper()[:40] if mode else action
+
+
 def record_action(
     action: str,
     *,
@@ -72,6 +92,7 @@ def record_action(
     **extra: Any,
 ) -> Dict[str, Any]:
     """Write one structured action. Safe to call from anywhere."""
+    action = _source_label(action)
     entry = {
         "ts": time.time(),
         "level": (level or "INFO").upper(),

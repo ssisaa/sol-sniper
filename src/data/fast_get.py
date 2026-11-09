@@ -119,7 +119,7 @@ def _cooling(url: str, lane: str = "") -> bool:
 
 def _restart_clients() -> None:
     """Drop every Chrome session. The next call is as clean as a process restart."""
-    lanes = ["shared", "callout", "predict", "openholds", "fresh"]
+    lanes = ["shared", "callout", "predict", "openholds", "mayhem", "fresh"]
     with _lane_lock:
         lanes.extend(_lane_locals.keys())
     for lane in dict.fromkeys(lanes):
@@ -132,7 +132,7 @@ def _mark_blocked(url: str, seconds: float = 20.0, lane: str = "") -> None:
     if not host:
         return
     lane = lane or "shared"
-    if lane == "openholds":
+    if lane in ("openholds", "mayhem", "mayhemstate"):
         seconds = min(float(seconds), 2.0)
     key = _cool_key(host, lane)
     with _cool_lock:
@@ -279,6 +279,8 @@ def _read(url: str, timeout: float, lane: str = "shared") -> Any:
             raise
         if last_status == 200:
             return _body(resp.text or "")
+        if last_status == 429:
+            break   # rate limit, not a block: keep the warm session, the caller backs off
         text = resp.text or ""
         challenged = last_status == 403 and ("Just a moment" in text or text.lstrip().startswith("<!DOCTYPE"))
         _close_chrome(lane)
@@ -343,6 +345,17 @@ def callout_get(url: str, timeout: float = 1.2, cache_s: float = 0.0) -> Any:
     return _lane_get("callout", url, timeout=timeout, cache_s=cache_s)
 
 
+def mayhem_get(url: str, timeout: float = 1.5, cache_s: float = 0.0) -> Any:
+    """Mayhem_Mode's book only. Its own socket: a rate limit elsewhere never pauses it, it waits at
+    most 2s after its own, and it never answers with an old cached body."""
+    return _lane_get("mayhem", url, timeout=timeout, cache_s=cache_s)
+
+
+def mayhem_state_get(url: str, timeout: float = 1.5) -> Any:
+    """Mayhem coin state reads (active / paused). Own socket, so they never slow the Mayhem book."""
+    return _lane_get("mayhemstate", url, timeout=timeout, cache_s=0.0)
+
+
 def predict_get(url: str, timeout: float = 4.0, cache_s: float = 0.0) -> Any:
     """Predict only."""
     return _lane_get("predict", url, timeout=timeout, cache_s=cache_s)
@@ -363,7 +376,7 @@ def _lane_get(lane: str, url: str, timeout: float = 3.0, cache_s: float = 0.0) -
         if hit and now - hit[0] < cache_s:
             return hit[1]
     if _cooling(url, lane):
-        if lane == "openholds":
+        if lane in ("openholds", "mayhem"):
             raise _blocked(url)
         with _lane_lock:
             hit = cache.get(url)
@@ -373,7 +386,7 @@ def _lane_get(lane: str, url: str, timeout: float = 3.0, cache_s: float = 0.0) -
     try:
         body = _read(url, max(0.35, float(timeout or 3.0)), lane)
     except Exception:
-        if lane != "openholds" and (cache_s > 0 or _cooling(url, lane)):
+        if lane not in ("openholds", "mayhem") and (cache_s > 0 or _cooling(url, lane)):
             with _lane_lock:
                 hit = cache.get(url)
             if hit and now - hit[0] < 60.0:

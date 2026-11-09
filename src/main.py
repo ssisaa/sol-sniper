@@ -41,6 +41,7 @@ log = logging.getLogger("sol-sniper")
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 from src.observability.action_log import install_action_log
+from src.config.runtime import is_mayhem_user
 install_action_log()
 
 
@@ -95,7 +96,7 @@ async def live_rpc_demo(extra_endpoints: list[str] | None = None) -> None:
     try:
         health = await client.health_check_all()
         for url, info in health.items():
-            short = url[:55] + "..." if len(url) > 55 else url
+            short = url.split("//")[-1].split("/")[0].split("?")[0]
             status = "OK" if info["healthy"] else "FAIL"
             log.info("[%s] %s | slot=%s | %.0fms", status, short, info.get("slot"), info.get("latency_ms", 0))
 
@@ -957,11 +958,11 @@ async def live_feed_demo(
                     if pos.status != "OPEN":
                         continue
                     if (
-                        getattr(pos, "source", "") in ("predict", "callout", "opencopy")
-                        or getattr(pos, "strategy", "") in ("predict", "callout", "opencopy")
+                        getattr(pos, "source", "") in ("predict", "callout", "opencopy", "mayhem")
+                        or getattr(pos, "strategy", "") in ("predict", "callout", "opencopy", "mayhem")
                         or bool(getattr(pos, "quick_entry", False))
                     ):
-                        if getattr(pos, "source", "") in ("predict", "callout", "opencopy"):
+                        if getattr(pos, "source", "") in ("predict", "callout", "opencopy", "mayhem"):
                             pos.strategy = pos.source
                         pos.stop_pct = None
                         continue
@@ -997,6 +998,8 @@ async def live_feed_demo(
             labels.append("callout")
         if getattr(cfg, "opencopy_enabled", False) or getattr(cfg, "filter_mode", "") == "opencopy":
             labels.append("opencopy")
+        if getattr(cfg, "mayhem_enabled", False) or getattr(cfg, "filter_mode", "") == "mayhem":
+            labels.append("mayhem")
         stats["filter_mode"] = " + ".join(labels) if labels else cfg.filter_mode
         stats["trade_mode"] = trade_mode
         return cfg
@@ -1033,8 +1036,15 @@ async def live_feed_demo(
                 data = {**mode_exit_profile(mode), **data}
                 log.info("Live Controls %s — loaded that mode's exit plan", mode)
             # Apply changes the running bot only. sniper.yaml stays the reset point.
+        # One Max position: Live Controls and Fast Pace are the same SOL per buy.
+        if data.get("max_position_sol") is not None:
+            data["fast_pace_max_sol"] = data["max_position_sol"]
+        elif data.get("fast_pace_max_sol") is not None:
+            data["max_position_sol"] = data["fast_pace_max_sol"]
         changed = update_config(data)
         cfg = sync_runtime_to_components()
+        if "max_position_sol" in changed:
+            log.warning("MAX POSITION %.4f SOL — every new buy uses this (Fast Pace shows the same)", float(cfg.max_position_sol or 0))
         try:
             from src.signal.dayscalp import set_rugcheck_enabled
             set_rugcheck_enabled(bool(getattr(cfg, "rugcheck_enabled", False)))
@@ -1286,11 +1296,8 @@ async def live_feed_demo(
                 set_openhold_status(mint, "BUYING")
                 note_openhold_seen(str((order or {}).get("userName") or ""), mint)
                 log.info("OPENHOLDS %s — clicked buy. Sending now.", symbol)
-                copy_on = (
-                    bool(getattr(get_config(), "opencopy_enabled", False))
-                    or str(getattr(get_config(), "filter_mode", "") or "") == "opencopy"
-                )
-                buy_source = "opencopy" if copy_on else "callout"
+                from src.config.runtime import copy_buy_source
+                buy_source = copy_buy_source(str((order or {}).get("userName") or ""))
                 try:
                     fill = await trader.buy(mint=mint, size_multiplier=1.0, source=buy_source, ref_price=1.0)
                     err = "" if (fill and fill.ok) else str(getattr(fill, "error", None) or "buy_failed")
@@ -1997,6 +2004,8 @@ async def live_feed_demo(
                     mint_key = entry.mint or ""
                     if not mint_key or (entry.status or "") == "failed":
                         continue
+                    if (entry.side or "").upper() not in ("BUY", "SELL"):
+                        continue   # a RENT row after the sell is not a new buy
                     prev = latest.get(mint_key)
                     if prev is None or float(entry.ts or 0) >= float(prev.ts or 0):
                         latest[mint_key] = entry
@@ -2127,7 +2136,17 @@ async def live_feed_demo(
                     _publish_wallet_and_ledger.shown = shown
                     log.info("WALLET panel %s SOL · %d coin(s)", "—" if sol is None else f"{float(sol):.4f}", len(tokens))
                 led = get_ledger()
-                await publish_ledger(led.recent(250), led.summary())
+                # The full ledger only when it changed (or every 30s): it was 250 rows every second.
+                led_rows, led_sum = led.recent(250), led.summary()
+                try:
+                    import json as _json_led
+                    led_key = hash(_json_led.dumps([led_rows, led_sum], sort_keys=True, default=str))
+                except Exception:
+                    led_key = None
+                last_key, last_at = getattr(_publish_wallet_and_ledger, "led", (None, 0.0))
+                if led_key is None or led_key != last_key or time.time() - last_at >= 30.0:
+                    _publish_wallet_and_ledger.led = (led_key, time.time())
+                    await publish_ledger(led_rows, led_sum)
                 try:
                     from src.observability.dashboard import bind_trade_caller
                     for pos in manager.positions.values():
@@ -2333,7 +2352,7 @@ async def live_feed_demo(
                     vals.append(getattr(trade, "source", ""))
                     for value in vals:
                         text = str(value or "").strip().lower()
-                        if text in ("opencopy", "callout", "predict"):
+                        if text in ("opencopy", "mayhem", "callout", "predict"):
                             return text
                     for value in vals:
                         text = str(value or "").strip()
@@ -2498,7 +2517,7 @@ async def live_feed_demo(
                 closed_src = getattr(closed_pos, "strategy", "") or getattr(closed_pos, "source", "")
             if not closed_src:
                 closed_src = getattr(trade, "source", "") or ""
-            if closed_src in ("callout", "opencopy") or getattr(trade, "source", "") in ("callout", "opencopy"):
+            if closed_src in ("callout", "opencopy", "mayhem") or getattr(trade, "source", "") in ("callout", "opencopy", "mayhem"):
                 from src.observability.dashboard import mark_callout, set_openhold_status
                 mark_callout(trade.mint, "CLOSED")
                 set_openhold_status(trade.mint, "")
@@ -2608,8 +2627,8 @@ async def live_feed_demo(
 
         def _is_copy(pos) -> bool:
             return (
-                getattr(pos, "strategy", "") in ("callout", "opencopy")
-                or getattr(pos, "source", "") in ("callout", "opencopy")
+                getattr(pos, "strategy", "") in ("callout", "opencopy", "mayhem")
+                or getattr(pos, "source", "") in ("callout", "opencopy", "mayhem")
             )
 
         _own = {"pk": None}
@@ -2671,8 +2690,8 @@ async def live_feed_demo(
             pos.low_since_pct = round(pct if prev_low is None else min(float(prev_low), pct), 2)
             pos.peak_price = 1.0 + float(pos.peak_since_pct) / 100.0
             return (
-                getattr(pos, "strategy", "") in ("callout", "opencopy")
-                or getattr(pos, "source", "") in ("callout", "opencopy")
+                getattr(pos, "strategy", "") in ("callout", "opencopy", "mayhem")
+                or getattr(pos, "source", "") in ("callout", "opencopy", "mayhem")
             )
 
         def _apply_coin(pos, coin) -> None:
@@ -2699,8 +2718,8 @@ async def live_feed_demo(
             if px <= 0:
                 return
             callout_held = (
-                getattr(pos, "strategy", "") in ("callout", "opencopy")
-                or getattr(pos, "source", "") in ("callout", "opencopy")
+                getattr(pos, "strategy", "") in ("callout", "opencopy", "mayhem")
+                or getattr(pos, "source", "") in ("callout", "opencopy", "mayhem")
             )
             predict_held = (
                 callout_held
@@ -3335,7 +3354,7 @@ async def live_feed_demo(
                 return
             try:
                 from src.config.runtime import get_config
-                if str(getattr(get_config(), "filter_mode", "") or "") in ("callout", "opencopy", "predict"):
+                if str(getattr(get_config(), "filter_mode", "") or "") in ("callout", "opencopy", "mayhem", "predict"):
                     return
             except Exception:
                 pass
@@ -4155,6 +4174,7 @@ async def live_feed_demo(
                     led = get_ledger()
                     led.set_chain_rows(bag)
                     changed = led.reconcile_wallet_sells(bag)
+                    _fix_open_cost_from_chain(bag, led)
                     if enable_ui and changed:
                         await publish_ledger(led.recent(250), led.summary())
                     if enable_ui:
@@ -4164,6 +4184,42 @@ async def live_feed_demo(
             except Exception:
                 log.warning("EXEC wallet sync failed", exc_info=True)
             await asyncio.sleep(3)
+
+    def _fix_open_cost_from_chain(bag, led) -> None:
+        """An open trade's SOL paid is what left the wallet on-chain for its buy, not the amount the
+        buy asked to spend. A lightning buy once spent 0.00115 SOL of a 0.0182 request (SOL/PEPE);
+        the trade then showed -96% instead of -44%. Only a buy whose signature the wallet lists is used."""
+        chain = {}
+        for row in bag or []:
+            if str(row.get("side") or "").upper() == "BUY" and row.get("signature"):
+                chain[str(row["signature"])] = float(row.get("sol_amount") or 0)
+        if not chain:
+            return
+        for pos in list(manager.positions.values()):
+            if pos.status != "OPEN" or not pos.mint:
+                continue
+            op = None
+            for e in reversed(list(led.entries)):
+                if e.mint == pos.mint and (e.side or "").upper() == "OPEN":
+                    op = e
+                    break
+            if op is None or not op.signature or op.signature not in chain:
+                continue
+            if abs(float(op.ts or 0) - float(pos.entry_time or 0)) > 600:
+                continue   # a different (older) buy of this coin
+            paid = chain[op.signature]
+            have = float(pos.entry_sol or 0)
+            if paid <= 0 or have <= 0 or abs(paid - have) <= max(0.0005, 0.10 * paid):
+                continue
+            log.warning(
+                "ENTRY FIX %s — wallet paid %.6f SOL on-chain, trade had %.6f. Using the on-chain amount.",
+                getattr(pos, "symbol", "") or pos.mint[:8], paid, have,
+            )
+            pos.entry_sol = paid
+            try:
+                manager._push_remote()
+            except Exception:
+                log.debug("entry fix save failed", exc_info=True)
 
     if enable_ui:
         asyncio.create_task(_wallet_exec_loop())
@@ -4484,7 +4540,7 @@ async def dayscalp_loop(
     # Do not change the selected mode. These exits apply only while dayscalp is on.
     if get_config().filter_mode == "dayscalp":
         cfg_now = get_config()
-        manager.cfg.max_position_sol = min(float(cfg_now.max_position_sol or 0.015), 0.015)
+        manager.cfg.max_position_sol = float(cfg_now.max_position_sol or 0.015)
         manager.cfg.max_concurrent = 1
         manager.cfg.exit_style = getattr(cfg_now, "exit_style", "plan") or "plan"
         manager.cfg.hard_stop_pct = float(cfg_now.hard_stop_pct)
@@ -4678,7 +4734,7 @@ async def dayscalp_loop(
             return
         cfg = get_config()
         mode = str(getattr(cfg, "filter_mode", "") or "").strip().lower()
-        real = {"opencopy", "callout", "predict", "launch", "dayscalp"}
+        real = {"opencopy", "mayhem", "callout", "predict", "launch", "dayscalp"}
         fake_close = {
             "wallet_already_sold", "not_in_wallet", "not_in_wallet_on_resume",
             "empty_wallet",
@@ -4829,6 +4885,17 @@ async def dayscalp_loop(
         for mint, acc in ordered:
             if any(p.status == "OPEN" and p.mint == mint for p in manager.positions.values()):
                 continue
+            # Our own buy of this coin is in flight or just landed: the buy books it with the real
+            # SOL paid. Booking it here first used a stale wallet cost and skipped the real fill.
+            if (getattr(trader, "_inflight_mint", "") == mint
+                    or _time.time() - float((getattr(trader, "_buy_at", None) or {}).get(mint, 0)) < 60):
+                continue
+            try:
+                from src.observability.dashboard import openhold_status as _oh_st
+                if _oh_st(mint) == "BUYING":
+                    continue
+            except Exception:
+                pass
             if sum(1 for p in manager.positions.values() if p.status == "OPEN") >= cap:
                 break
             raw = int(acc.get("raw") or 0)
@@ -4920,9 +4987,9 @@ async def dayscalp_loop(
                 bind_trade_caller(pos)
             except Exception:
                 log.debug("restore caller bind failed", exc_info=True)
-            if source in ("callout", "opencopy", "predict"):
+            if source in ("callout", "opencopy", "mayhem", "predict"):
                 pos.stop_pct = None
-                pos._from_openholds = source in ("callout", "opencopy")
+                pos._from_openholds = source in ("callout", "opencopy", "mayhem")
             if entry_time:
                 pos.entry_time = entry_time
             pos._restored_at = _time.time()
@@ -5786,8 +5853,10 @@ async def dayscalp_loop(
         openhold_ids: set[str] = set()
         crossed: set[str] = set()
         cooled: dict[str, float] = {}
+        _buy_fails: dict[str, int] = {}   # failed auto-buys per coin, for the retry cooldown
         last_note = 0.0
         last_pub = 0.0
+        co_eval_at = 0.0
 
         async def _openholds_manual() -> list:
             """Clicks from the OpenHolds row. Sell now. Buy is returned for the free-slot pass."""
@@ -5837,7 +5906,7 @@ async def dayscalp_loop(
                 try:
                     await publish_alert(
                         level="warn",
-                        title="OpenHolds",
+                        title=("Mayhem" if is_mayhem_user(str(row.get("userName") or "")) else "OpenHolds"),
                         message=f"{symbol} — No free slot",
                         mint=mint or None,
                         source="callout",
@@ -5845,7 +5914,7 @@ async def dayscalp_loop(
                 except Exception:
                     log.debug("openholds no-slot toast failed", exc_info=True)
 
-            if room <= 0:
+            if room <= 0 and not any(row.get("force") for row in forced):
                 for row in forced:
                     await _no_slot(row)
                 return 0
@@ -5853,7 +5922,7 @@ async def dayscalp_loop(
             now_cool = _time.time()
             took = 0
             for row in forced:
-                if took >= room:
+                if took >= room and not row.get("force"):
                     await _no_slot(row)
                     continue
                 mint = str(row.get("coinMint") or "")
@@ -5865,6 +5934,35 @@ async def dayscalp_loop(
                 name = row.get("name") or ""
                 user = str(row.get("userName") or "")
                 wallet = str(row.get("wallet") or "")
+                if row.get("auto") and is_mayhem_user(user):
+                    # Mayhem auto-buy skips a coin pump has already paused: it would be sold again at
+                    # once by the paused rule, paying both trades' fees. A read that does not answer
+                    # within 1s does not block the buy (the paused rule still covers it after).
+                    paused_why = ""
+                    try:
+                        from src.data.fast_get import pump_get
+                        st = await asyncio.to_thread(
+                            pump_get, f"https://frontend-api-v3.pump.fun/coins-v2/{mint}/mayhem-state",
+                            timeout=1.0, cache_s=2.0,
+                        )
+                        if isinstance(st, dict) and str(st.get("state") or "").lower() == "paused":
+                            paused_why = str(st.get("pause_reason") or "paused")
+                    except Exception:
+                        paused_why = ""
+                    if paused_why:
+                        cooled[mint] = _time.time() + 120
+                        log.info("OPENHOLDS %s — Mayhem coin is paused by pump (%s). Not buying.", symbol, paused_why)
+                        try:
+                            from src.observability.dashboard import mayhem_note
+                            mayhem_note("warn", f"{symbol} — paused by pump ({paused_why}). Not bought.", mint)
+                        except Exception:
+                            pass
+                        try:
+                            from src.observability.dashboard import _openhold_block
+                            _openhold_block(row, f"paused by pump ({paused_why})", 60.0)
+                        except Exception:
+                            log.debug("paused block note failed", exc_info=True)
+                        continue
                 set_openhold_status(mint, "BUYING")
                 note_openhold_seen(user, mint)
                 if row.get("auto"):
@@ -5876,11 +5974,8 @@ async def dayscalp_loop(
                     log.info("OPENHOLDS %s — clicked buy. Buying this coin only.", symbol)
                 fill = None
                 err = ""
-                copy_on = (
-                    bool(getattr(get_config(), "opencopy_enabled", False))
-                    or str(getattr(get_config(), "filter_mode", "") or "") == "opencopy"
-                )
-                buy_source = "opencopy" if copy_on else "callout"
+                from src.config.runtime import copy_buy_source
+                buy_source = copy_buy_source(str(row.get("userName") or user or ""))
                 try:
                     fill = await trader.buy(mint=mint, size_multiplier=1.0, source=buy_source, ref_price=1.0)
                     err = "" if (fill and fill.ok) else str(getattr(fill, "error", None) or "buy_failed")
@@ -5899,7 +5994,21 @@ async def dayscalp_loop(
                         log.warning("OPENHOLDS %s — wallet read missed, still watching", symbol)
                     else:
                         set_openhold_status(mint, "MISSED")
-                        log.warning("OPENHOLDS MISSED %s — %s", symbol, err or "buy_failed")
+                        fails = _buy_fails.get(mint, 0) + 1
+                        _buy_fails[mint] = fails
+                        cooled[mint] = _time.time() + (60 if fails == 1 else (180 if fails == 2 else 600))
+                        log.warning("OPENHOLDS MISSED %s — %s (try %d, cooling)", symbol, err or "buy_failed", fails)
+                        try:
+                            from src.observability.dashboard import publish_alert
+                            await publish_alert(
+                                level="warn",
+                                title=("Mayhem" if is_mayhem_user(user) else "OpenHolds"),
+                                message=f"{symbol} — buy failed: {err or 'buy_failed'}. No coin was bought.",
+                                mint=mint,
+                                source="opencopy",
+                            )
+                        except Exception:
+                            log.debug("openholds missed toast failed", exc_info=True)
                     continue
                 # Tag the trade at once from the fill. Marks and the ledger follow in the background,
                 # so the exits own this coin from the first tick instead of after two API reads.
@@ -6024,6 +6133,12 @@ async def dayscalp_loop(
                 held.add(mint)
                 took += 1
                 log.info("OPENHOLDS HOLDING %s sol=%.4f — exit rules unchanged", symbol, fill.sol_in)
+                if buy_source == "mayhem":
+                    try:
+                        from src.observability.dashboard import mayhem_note
+                        mayhem_note("buy", f"{symbol} — bought {float(fill.sol_in or 0):.4f} SOL. Holding.", mint)
+                    except Exception:
+                        pass
             return took
 
         while True:
@@ -6053,7 +6168,8 @@ async def dayscalp_loop(
             if not (
                 bool(getattr(cfg_now, "callout_enabled", False))
                 or bool(getattr(cfg_now, "opencopy_enabled", False))
-                or str(getattr(cfg_now, "filter_mode", "") or "") == "opencopy"
+                or str(getattr(cfg_now, "filter_mode", "") or "") in ("opencopy", "mayhem")
+                or bool(getattr(cfg_now, "mayhem_enabled", False))
             ) or not cfg_now.trade_enabled:
                 continue
             try:
@@ -6065,7 +6181,7 @@ async def dayscalp_loop(
 
             def _is_callout(pos) -> bool:
                 kind = {getattr(pos, "source", ""), getattr(pos, "strategy", "")}
-                return bool(kind & {"callout", "opencopy"})
+                return bool(kind & {"callout", "opencopy", "mayhem"})
 
             mine = [pos for pos in manager.positions.values() if pos.status == "OPEN" and _is_callout(pos)]
             ids = {pos.id for pos in mine}
@@ -6115,10 +6231,12 @@ async def dayscalp_loop(
                 if since is not None and float(since) <= threshold and pos.mint:
                     crossed.add(pos.mint)
 
+            hold_mode = bool(getattr(cfg_now, "hold_only", False))
+
             def _next_ok() -> tuple[bool, str]:
                 """A second coin waits until the newest open Callout is at or below the next-trade line."""
-                if not mine:
-                    return True, ""
+                if not mine or hold_mode:
+                    return True, ""   # hold mode: Max concurrency's free slots decide, not the next-trade %
                 newest = max(mine, key=lambda pos: float(pos.entry_time or 0))
                 since = getattr(newest, "since_buy_pct", None)
                 sym = (getattr(newest, "symbol", "") or "open")
@@ -6128,18 +6246,38 @@ async def dayscalp_loop(
                 return True, ""
 
             allowed, blocked = _next_ok()
+            # OpenHolds auto-open belongs to the OpenCopy source only. With Callout selected, a
+            # pinned holder's brand-new open must go through the Callout rule and the next-trade gate,
+            # not be bought here. Clicked Buy/Sell rows still run for either source.
+            copy_auto = (
+                bool(getattr(cfg_now, "opencopy_enabled", False))
+                or str(getattr(cfg_now, "filter_mode", "") or "") in ("opencopy", "mayhem")
+                or bool(getattr(cfg_now, "mayhem_enabled", False))
+            )
+            if room <= 0 and copy_auto:
+                # No slot: still look, so a new open inside the window is listed and toasted with why.
+                try:
+                    from src.observability.dashboard import openhold_new_coins, openhold_no_room
+                    from src.config.runtime import openhold_auto_seconds
+                    full = await asyncio.to_thread(openhold_new_coins)
+                    openhold_no_room(full, len(mine), openhold_auto_seconds())
+                except Exception:
+                    log.debug("openholds no-room scan failed", exc_info=True)
             if room > 0:
                 forced = await _openholds_manual()
                 if forced and await _openholds_take(room, forced):
                     continue
-                try:
-                    from src.observability.dashboard import openhold_new_coins
-                    fresh = await asyncio.to_thread(openhold_new_coins)
-                except Exception:
-                    log.debug("openholds new-open scan failed", exc_info=True)
-                    fresh = []
+                fresh = []
+                if copy_auto:
+                    try:
+                        from src.observability.dashboard import openhold_new_coins
+                        fresh = await asyncio.to_thread(openhold_new_coins)
+                    except Exception:
+                        log.debug("openholds new-open scan failed", exc_info=True)
+                        fresh = []
                 if fresh and await _openholds_take(room, fresh):
                     continue
+            if copy_auto:   # toasts for OpenHolds opens held back, with or without a free slot
                 try:
                     from src.observability.dashboard import openhold_waiting, publish_alert
                     waited = openhold_waiting()
@@ -6154,26 +6292,30 @@ async def dayscalp_loop(
                     mint = str(row.get("coinMint") or "")
                     if not mint or now_toast - float(told.get(mint) or 0) < 20:
                         continue
+                    if is_mayhem_user(str(row.get("user") or row.get("userName") or "")):
+                        continue   # MayhemMode lists these in Held back; no repeat notice
                     told[mint] = now_toast
                     symbol = row.get("symbol") or mint[:6]
                     why = row.get("why") or "not positive yet"
-                    if "above 5" in why:
-                        note = " Watching until it is 5% or below."
-                    elif "pump" in why:
-                        note = ""
+                    left = float(row.get("left") or 0)
+                    tail = f" Auto window {left:.0f}s left." if left > 0 else ""
+                    if "outside 0%" in why or "below $0" in why or "is above $" in why or "no PnL" in why:
+                        note = " Watching: it buys if it comes into range." + tail
+                    elif "no free trade slot" in why:
+                        note = " It buys if a slot frees up." + tail
                     else:
-                        note = " Watching until it is positive."
+                        note = tail
                     try:
                         await publish_alert(
                             level="warn",
-                            title="OpenHolds",
+                            title=("Mayhem" if is_mayhem_user(str(row.get("user") or row.get("userName") or "")) else "OpenHolds"),
                             message=f"{symbol} — {why}.{note}",
                             mint=mint,
                             source="opencopy",
                         )
                     except Exception:
                         log.debug("openholds wait toast failed", exc_info=True)
-            else:
+            if room <= 0:
                 forced = await _openholds_manual()
                 if forced:
                     await _openholds_take(0, forced)
@@ -6215,15 +6357,78 @@ async def dayscalp_loop(
             # Opencopy buys only from OpenHolds. The Callout page buy stays off.
             if not bool(getattr(cfg_now, "callout_enabled", False)):
                 continue
-            if room <= 0 or foreign:
-                continue
             anchor = None
             pending = [pos for pos in mine if pos.id not in spawned]
             if pending:
                 anchor = max(pending, key=lambda pos: float(pos.entry_time or 0))
+            if _time.time() - co_eval_at >= 1.0:
+                # Same rule as OpenCopy, on every Callout OPEN row. Each coin that is not opening gets
+                # its reason on the CallOuts page; a new or changed reason also toasts.
+                co_eval_at = _time.time()
+                try:
+                    from src.observability.dashboard import (
+                        _callout_rows, callout_rule, clear_callout_block, note_callout_block, publish_alert,
+                    )
+                    eval_rows, _eval_err = await asyncio.to_thread(_callout_rows)
+                    held_now = {p.mint for p in manager.positions.values() if p.status == "OPEN" and p.mint}
+                    a_since = getattr(anchor, "since_buy_pct", None) if anchor is not None else None
+                    a_sym = (getattr(anchor, "symbol", "") if anchor is not None else "") or "the open trade"
+                    a_shown = "…" if a_since is None else f"{float(a_since):+.1f}%"
+                    next_ready = (
+                        not mine
+                        or hold_mode
+                        or (a_since is not None and float(a_since) <= threshold)
+                    )
+                    for row in eval_rows or []:
+                        mint = str(row.get("coinMint") or "")
+                        if not mint or mint in held_now or row.get("call") == "CLOSE":
+                            if mint:
+                                clear_callout_block(mint)
+                            continue
+                        why = callout_rule(row)
+                        kind = "rule"
+                        if not why and row.get("call") != "OPEN":
+                            why = f"Call is {row.get('call') or 'WAIT'}, not OPEN"
+                        if not why:
+                            if foreign:
+                                why = f"another source's trade is open ({len(foreign)}). Callout waits for it to close"
+                                kind = "slot"
+                            elif mine and not next_ready:
+                                why = (
+                                    f"in range — next trade pending. It opens when {a_sym} (now {a_shown}) "
+                                    f"drops to {threshold:+.0f}% or closes, or buy it manually"
+                                )
+                                kind = "pending"
+                            elif room <= 0:
+                                why = f"no free trade slot ({len(mine)} open). It opens when a trade closes, or buy it manually"
+                                kind = "slot"
+                            elif mint in crossed or mint in cooled:
+                                why = "sold a moment ago — not bought again for 3 minutes"
+                                kind = "slot"
+                        if not why:
+                            clear_callout_block(mint)
+                            continue
+                        changed = note_callout_block(row, why, kind)
+                        if changed and kind != "rule":
+                            try:
+                                await publish_alert(
+                                    level="warn",
+                                    title="Callout",
+                                    message=f"{row.get('symbol') or mint[:6]} — {why}.",
+                                    mint=mint,
+                                    source="callout",
+                                )
+                            except Exception:
+                                log.debug("callout hold toast failed", exc_info=True)
+                except Exception:
+                    log.debug("callout evaluation failed", exc_info=True)
+            if room <= 0 or foreign:
+                continue
             trigger = ""
             if not mine:
                 trigger = "slot" if free_slots > 0 else "flat"
+            elif hold_mode:
+                trigger = "slot"   # room > 0 was checked above
             elif (
                 anchor is not None
                 and getattr(anchor, "since_buy_pct", None) is not None
@@ -6262,42 +6467,36 @@ async def dayscalp_loop(
                         trigger, len(mine), threshold,
                     )
                 continue
+            # Same auto-open rule as OpenCopy: pump coin, unrealized $0.00 to the Settings top,
+            # percentage above 0% to the Settings top. 5m is no longer part of the pick.
+            try:
+                from src.observability.dashboard import callout_rule, clear_callout_block
+            except Exception:
+                callout_rule = None
             picked = None
             passed = []
             for candidate in opens:
-                raw_m5 = candidate.get("m5")
-                try:
-                    m5v = None if raw_m5 is None or raw_m5 == "" else float(raw_m5)
-                except (TypeError, ValueError):
-                    m5v = None
-                if m5v is None or m5v <= 0:
-                    passed.append((candidate.get("symbol") or candidate.get("coinMint", "")[:6], m5v))
+                why = callout_rule(candidate) if callout_rule else ""
+                if why:
+                    passed.append((candidate.get("symbol") or candidate.get("coinMint", "")[:6], why))
                     continue
                 picked = candidate
                 break
             if picked is None:
                 if _time.time() - last_note > 20:
                     last_note = _time.time()
-                    sample = ", ".join(
-                        f"{sym} {'missing' if val is None else f'{val:+.1f}%'}"
-                        for sym, val in passed[:4]
-                    )
-                    log.info("CALLOUT %s — OPEN but 5m is not positive (%s). Not buying.", trigger, sample or "none")
+                    sample = "; ".join(f"{sym} {why}" for sym, why in passed[:4])
+                    log.info("CALLOUT %s — no OPEN inside the auto-open range (%s). Not buying.", trigger, sample or "none")
                     try:
                         from src.observability.action_log import record_action
-                        record_action(
-                            "CALLOUT",
-                            detail=f"SKIP 5m not positive — {sample or 'no OPEN'}"[:220],
-                        )
+                        record_action("CALLOUT", detail=f"SKIP out of range — {sample or 'no OPEN'}"[:220])
                     except Exception:
                         pass
                 continue
-            if passed:
-                sample = ", ".join(
-                    f"{sym} {'missing' if val is None else f'{val:+.1f}%'}"
-                    for sym, val in passed[:3]
-                )
-                log.info("CALLOUT passed %s — 5m is not positive", sample)
+            try:
+                clear_callout_block(picked.get("coinMint") or "")
+            except Exception:
+                pass
             row = picked
             mint = row["coinMint"]
             symbol = row.get("symbol") or mint[:6]
@@ -6320,8 +6519,8 @@ async def dayscalp_loop(
                 "wallet": str(row.get("walletAddress") or ""),
             }
             log.info(
-                "CALLOUT %s %s — buying a different OPEN. 5m %+.1f%%. next-trade level %+.0f%%",
-                trigger, symbol, float(frozen["m5"] or 0), threshold,
+                "CALLOUT %s %s — buying. caller %s / unrealized %s inside the range. next-trade level %+.0f%%",
+                trigger, symbol, row.get("percentageUsd"), row.get("unrealizedUsd"), threshold,
             )
             try:
                 from src.observability.dashboard import remember_callout
@@ -6363,7 +6562,22 @@ async def dayscalp_loop(
                 log.warning("CALLOUT quote retry %s %s/5 — %s", symbol, attempt, err)
                 await asyncio.sleep(3)
             if not (fill and fill.ok):
-                log.warning("CALLOUT buy not filled %s — %s", symbol, err or "buy_failed")
+                # A failed buy is not retried at once: the same coin re-tried every second ran 80 buys
+                # in two minutes, and the ones that reached the chain each paid a fee. 1m, then 3m, then 10m.
+                fails = _buy_fails.get(mint, 0) + 1
+                _buy_fails[mint] = fails
+                wait_s = 60 if fails == 1 else (180 if fails == 2 else 600)
+                cooled[mint] = _time.time() + wait_s
+                log.warning("CALLOUT buy not filled %s — %s (try %d; not retried for %ds)", symbol, err or "buy_failed", fails, wait_s)
+                try:
+                    from src.observability.dashboard import publish_alert
+                    await publish_alert(
+                        level="warn", title="Callout",
+                        message=f"{symbol} — buy failed: {err or 'buy_failed'}. No coin was bought.",
+                        mint=mint, source="callout",
+                    )
+                except Exception:
+                    log.debug("callout missed toast failed", exc_info=True)
                 try:
                     from src.observability.dashboard import mark_callout
                     mark_callout(mint, "MISSED")
@@ -6533,8 +6747,8 @@ async def dayscalp_loop(
             mine = [
                 p for p in manager.positions.values()
                 if p.status == "OPEN" and (
-                    getattr(p, "strategy", "") in ("callout", "opencopy")
-                    or getattr(p, "source", "") in ("callout", "opencopy")
+                    getattr(p, "strategy", "") in ("callout", "opencopy", "mayhem")
+                    or getattr(p, "source", "") in ("callout", "opencopy", "mayhem")
                 )
             ]
             try:
@@ -6633,6 +6847,40 @@ async def dayscalp_loop(
                     log.debug("copy holder read failed", exc_info=True)
 
     asyncio.create_task(_callout_holder_watch())
+
+    async def _mayhem_pause_watch() -> None:
+        """Mayhem trades only: pump's coins-v2/<mint>/mayhem-state. "paused" sells the coin in full
+        at once (hold mode and exit settings do not stop it). One small read per open Mayhem trade
+        every 2s; nothing runs when no Mayhem trade is open."""
+        from src.data.fast_get import pump_get
+        while True:
+            await asyncio.sleep(2.0)
+            try:
+                mine = [
+                    p for p in manager.positions.values()
+                    if p.status == "OPEN" and p.mint
+                    and "mayhem" in (str(getattr(p, "source", "") or ""), str(getattr(p, "strategy", "") or ""))
+                    and not getattr(p, "_sell_busy", False)
+                ]
+                for pos in mine:
+                    try:
+                        body = await asyncio.to_thread(
+                            pump_get,
+                            f"https://frontend-api-v3.pump.fun/coins-v2/{pos.mint}/mayhem-state",
+                            timeout=2.0, cache_s=0,
+                        )
+                    except Exception:
+                        continue          # no answer is not "paused": try again next pass
+                    if not isinstance(body, dict):
+                        continue
+                    state = str(body.get("state") or "").strip().lower()
+                    pos._mayhem_state = state
+                    if state == "paused":
+                        manager.kick_mayhem_paused(pos, str(body.get("pause_reason") or ""))
+            except Exception:
+                log.debug("mayhem pause watch failed", exc_info=True)
+
+    asyncio.create_task(_mayhem_pause_watch())
     asyncio.create_task(_reopen_unsold())
     from src.execution.wallet_gate import set_wallet_listener, sync_wallet_forever
     set_wallet_listener(_book_bought_still_held)
@@ -6743,8 +6991,8 @@ async def dayscalp_loop(
             except Exception:
                 px = 0.0
             callout_held = (
-                getattr(pos, "strategy", "") in ("callout", "opencopy")
-                or getattr(pos, "source", "") in ("callout", "opencopy")
+                getattr(pos, "strategy", "") in ("callout", "opencopy", "mayhem")
+                or getattr(pos, "source", "") in ("callout", "opencopy", "mayhem")
             )
             if px > 0 and callout_held and float(getattr(pos, "_stream_px_at", 0) or 0) > _time.time() - 3:
                 # The trade socket already set a newer price. The coins-v2 read lags it.
@@ -6874,8 +7122,8 @@ async def dayscalp_loop(
                 mine = [
                     p for p in manager.positions.values()
                     if p.status == "OPEN" and (
-                        getattr(p, "strategy", "") in ("callout", "opencopy")
-                        or getattr(p, "source", "") in ("callout", "opencopy")
+                        getattr(p, "strategy", "") in ("callout", "opencopy", "mayhem")
+                        or getattr(p, "source", "") in ("callout", "opencopy", "mayhem")
                     )
                 ]
                 if not mine:

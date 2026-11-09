@@ -38,6 +38,42 @@ def _shown_pct(pos) -> Optional[float]:
     return _pnl_pct(None, pos)
 
 
+COPY_STOP_GRACE_S = 3.0   # no copy stop in the first seconds after the buy: pump's % is not settled yet
+COPY_STOP_CONFIRM_S = 1.0  # the drop must still be there on a later reading this far apart
+
+
+def _copy_stop_confirmed(pos, since: float, stop: float, hold: float, now: float) -> bool:
+    """A copy stop sells only on a real drop, not on one bad reading right after the buy.
+
+    - Not inside the grace window after the buy.
+    - The live trade-stream price, when there is one, must agree that the stop is hit.
+    - The breach must hold on a second reading at least COPY_STOP_CONFIRM_S later.
+    """
+    if hold < COPY_STOP_GRACE_S:
+        return False
+    live = float(getattr(pos, "_live_px", 0) or 0)
+    entry = float(getattr(pos, "entry_price_usd", 0) or getattr(pos, "_pump_entry_px", 0) or 0)
+    fresh = now - float(getattr(pos, "_stream_px_at", 0) or 0) <= 5.0
+    if live > 0 and entry > 0 and fresh and (live / entry - 1.0) * 100.0 > stop:
+        if getattr(pos, "_cs_breach_at", None) is not None or not getattr(pos, "_cs_disagree_logged", False):
+            pos._cs_disagree_logged = True
+            log.info(
+                "COPY STOP hold mint=%s %s pump %% %+.2f but live price %+.2f%% — not a real drop",
+                pos.mint[:8], getattr(pos, "symbol", "") or "", since, (live / entry - 1.0) * 100.0,
+            )
+        pos._cs_breach_at = None
+        return False
+    first = getattr(pos, "_cs_breach_at", None)
+    if first is None:
+        pos._cs_breach_at = now
+        log.info(
+            "COPY STOP check mint=%s %s since buy %+.2f%% at %+.0f%% — confirming",
+            pos.mint[:8], getattr(pos, "symbol", "") or "", since, stop,
+        )
+        return False
+    return now - float(first) >= COPY_STOP_CONFIRM_S
+
+
 def _stream_saw_exit(pos) -> bool:
     """The trade socket saw this copy's caller sell the whole coin."""
     try:
@@ -64,7 +100,20 @@ def _dropoff_for(pos) -> bool:
         return False
     if bool(getattr(cfg, "callout_dropoff", False)):
         return True
+    if bool(getattr(cfg, "hold_only", False)) and _copy_source(pos):
+        return True   # hold mode: the caller selling is the exit, at any percent
     return bool(getattr(cfg, "copy_follow_exit", True)) and _stream_saw_exit(pos)
+
+
+def _copy_source(pos) -> bool:
+    return (
+        getattr(pos, "strategy", "") in ("callout", "opencopy", "mayhem")
+        or getattr(pos, "source", "") in ("callout", "opencopy", "mayhem")
+    )
+
+
+# Hold mode keeps a Callout/OpenCopy trade until the caller sells or you sell.
+_HOLD_EXITS = ("caller_closed", "manual_now", "mayhem_paused")
 
 
 def _profit_sell_reason(reason: str) -> bool:
@@ -353,11 +402,10 @@ class PositionManager:
         return True
 
     def size_for_entry(self, size_multiplier: float = 1.0) -> float:
-        base = min(
-            self.cfg.max_position_sol,
-            self.cfg.total_capital_sol * self.cfg.max_position_pct,
-        )
-        return max(0.001, base * max(0.25, min(1.25, size_multiplier)))
+        # Max position (SOL) in Live Controls is the size. The old 10-SOL x 0.7% cap (0.07 SOL)
+        # silently cut anything above it. The wallet balance check in the trader still applies.
+        base = float(self.cfg.max_position_sol)
+        return max(0.001, base * max(0.25, min(1.0, size_multiplier)))
 
     def set_price(self, mint: str, price: float) -> None:
         """Paper price oracle: SOL per whole position unit (we use entry-relative)."""
@@ -739,9 +787,15 @@ class PositionManager:
                             urgent = (
                                 str(reason).startswith("tp_")
                                 or str(reason).startswith("take_profit")
-                                or str(reason) in ("caller_closed", "caller_drop_7", "callout_age", "manual_now")
+                                or str(reason) in (
+                                    "caller_closed", "caller_drop_7", "callout_age", "manual_now", "mayhem_paused",
+                                    "fast_pace_sell", "copy_stop", "trailing_stop",
+                                )
+                                or "stop" in str(reason)
                             )
-                            wait = 12.0 if ("429" in err or "stop" in str(reason)) else (2.0 if urgent else 15.0)
+                            # A sell that hit its target retries fast: a rate limit clears in about a second,
+                            # and 12s waits let +26% fall back to +13%.
+                            wait = 1.0 if urgent else (3.0 if "429" in err else 15.0)
                             self._sell_cooldown[pos.mint] = time.time() + wait
                             log.warning(
                                 "ACTION QUOTE_RETRY %d/25 mint=%s err=%s — wait %.0fs, no swap was sent",
@@ -765,7 +819,7 @@ class PositionManager:
                         str(reason).startswith("tp_")
                         or str(reason).startswith("take_profit")
                         or "stop" in str(reason)
-                        or str(reason) in ("caller_closed", "caller_drop_7", "callout_age", "manual_now")
+                        or str(reason) in ("caller_closed", "caller_drop_7", "callout_age", "manual_now", "mayhem_paused")
                     )
                     wait = 2.0 if urgent else 30.0
                     self._sell_cooldown[pos.mint] = time.time() + wait
@@ -778,7 +832,7 @@ class PositionManager:
                         str(reason).startswith("tp_")
                         or str(reason).startswith("take_profit")
                         or "stop" in str(reason)
-                        or str(reason) in ("caller_closed", "caller_drop_7", "callout_age", "manual_now")
+                        or str(reason) in ("caller_closed", "caller_drop_7", "callout_age", "manual_now", "mayhem_paused")
                     )
                     wait = 1.0 if urgent else 10.0
                     self._sell_cooldown[pos.mint] = time.time() + wait
@@ -805,7 +859,7 @@ class PositionManager:
     async def sell_source_now(self, source: str) -> Dict[str, Any]:
         """Sell every open trade of the Live Control source. 100%, even at a loss."""
         source = str(source or "").strip().lower()
-        if source not in ("launch", "dayscalp", "predict", "callout", "opencopy"):
+        if source not in ("launch", "dayscalp", "predict", "callout", "opencopy", "mayhem"):
             return {
                 "ok": False,
                 "error": "Select launch, dayscalp, predict, callout, or opencopy in Live controls",
@@ -849,7 +903,7 @@ class PositionManager:
         pos = next((p for p in self.positions.values() if p.status == "OPEN" and p.mint == mint), None)
         if pos is None:
             return {"ok": False, "error": "This bot is not holding that coin", "sold": 0}
-        callout = str(getattr(pos, "source", "") or "") in ("callout", "opencopy") or str(getattr(pos, "strategy", "") or "") in ("callout", "opencopy")
+        callout = str(getattr(pos, "source", "") or "") in ("callout", "opencopy", "mayhem") or str(getattr(pos, "strategy", "") or "") in ("callout", "opencopy", "mayhem")
         if not force and not callout:
             return {"ok": False, "error": "That trade is not a Callout", "sold": 0}
         if not force and not getattr(pos, "_caller_closed", False):
@@ -893,6 +947,36 @@ class PositionManager:
 
         from src.execution.fast_lane import fire_sell
         fire_sell(pos.mint, f"caller_closed {getattr(pos, 'symbol', '') or pos.mint[:8]}", _urgent)
+
+    def kick_mayhem_paused(self, pos, why: str = "") -> bool:
+        """Mayhem coin whose pump mayhem-state is "paused": sell it in full now (any exit settings,
+        hold mode included). Returns True when a sell was started."""
+        if pos is None or getattr(pos, "status", "") != "OPEN" or getattr(pos, "_sell_busy", False):
+            return False
+        pos._mayhem_paused = True
+        pos._sell_busy = True
+        pos._sell_stopped = False
+        self._sell_cooldown.pop(pos.mint, None)
+        log.warning("MAYHEM PAUSED %s — pump paused this coin (%s). Selling 100%% now.",
+                    getattr(pos, "symbol", "") or pos.mint[:8], why or "paused")
+        try:
+            from src.observability.dashboard import mayhem_note
+            mayhem_note("sell", f"{getattr(pos, 'symbol', '') or pos.mint[:8]} — pump paused this coin ({why or 'paused'}). Selling 100% now.", pos.mint)
+        except Exception:
+            pass
+
+        async def _urgent(p=pos) -> None:
+            try:
+                pid = next((i for i, item in self.positions.items() if item is p), None)
+                ok, exit_px = await self._maybe_sell(p, 1.0, "mayhem_paused", float(p.entry_price or 0))
+                if ok and pid is not None and getattr(p, "status", "") == "OPEN":
+                    await self.close_position(pid, "mayhem_paused", exit_price=exit_px or 0.0, frac=1.0)
+            finally:
+                p._sell_busy = False
+
+        from src.execution.fast_lane import fire_sell
+        fire_sell(pos.mint, f"mayhem_paused {getattr(pos, 'symbol', '') or pos.mint[:8]}", _urgent)
+        return True
 
     async def _fire_manual(self, pos) -> bool:
         """Sell this coin now. Does not wait for the exit scan."""
@@ -942,8 +1026,8 @@ class PositionManager:
             if pos.status != "OPEN" or getattr(pos, "_sell_busy", False):
                 continue
             copy_now = (
-                getattr(pos, "strategy", "") in ("callout", "opencopy", "predict")
-                or getattr(pos, "source", "") in ("callout", "opencopy", "predict")
+                getattr(pos, "strategy", "") in ("callout", "opencopy", "mayhem", "predict")
+                or getattr(pos, "source", "") in ("callout", "opencopy", "mayhem", "predict")
             )
             dropoff_now = False
             if copy_now and getattr(pos, "_caller_closed", False):
@@ -1032,8 +1116,8 @@ class PositionManager:
                             pos.mint[:8],
                         )
             copy = (
-                getattr(pos, "strategy", "") in ("callout", "opencopy", "predict")
-                or getattr(pos, "source", "") in ("callout", "opencopy", "predict")
+                getattr(pos, "strategy", "") in ("callout", "opencopy", "mayhem", "predict")
+                or getattr(pos, "source", "") in ("callout", "opencopy", "mayhem", "predict")
             )
             if copy and getattr(pos, "_caller_closed", False):
                 dropoff_now = _dropoff_for(pos)
@@ -1094,7 +1178,7 @@ class PositionManager:
                     continue
             price = self.get_price(pos)
             # A raw token price is not "flat". Do not pretend the trade is at entry.
-            if pos.mode == PositionMode.LIVE and getattr(pos, "_mark_at", 0) + 15 < now and not self._exit_urgent(pos):
+            if pos.mode == PositionMode.LIVE and getattr(pos, "_mark_at", 0) + 45 < now and not self._exit_urgent(pos):
                 pos._mark_at = now  # type: ignore[attr-defined]
                 try:
                     jup = getattr(self, "_trader_jup", None)
@@ -1164,6 +1248,9 @@ class PositionManager:
                                     "EXIT MARK %s value=%.4f SOL cost=%.4f ret=%+.1f%% hold=%.0fs",
                                     pos.mint[:8], sol_out, pos.entry_sol, (mark - 1) * 100, now - pos.entry_time,
                                 )
+                        elif str(getattr(jup, "_last_error", "") or "") in ("background_skip",) or "429" in str(getattr(jup, "_last_error", "") or ""):
+                            # Jupiter's background budget was spent or rate-limited. Not a missing route.
+                            pos._mark_at = now - 35  # type: ignore[attr-defined]
                         else:
                             pos._noroute = int(getattr(pos, "_noroute", 0) or 0) + 1  # type: ignore[attr-defined]
                             err = str(getattr(jup, "_last_error", "") or "")
@@ -1224,11 +1311,11 @@ class PositionManager:
             )
             kind = str(getattr(pos, "strategy", "") or "").strip().lower()
             src = str(getattr(pos, "source", "") or "").strip().lower()
-            callout_pos = kind in ("callout", "opencopy") or src in ("callout", "opencopy")
+            callout_pos = kind in ("callout", "opencopy", "mayhem") or src in ("callout", "opencopy", "mayhem")
             if not callout_pos and bool(getattr(pos, "_from_openholds", False)):
                 if src not in ("launch", "dayscalp", "predict") and kind not in ("launch", "dayscalp", "predict"):
                     callout_pos = True
-                    pos.strategy = src if src in ("callout", "opencopy") else "opencopy"
+                    pos.strategy = src if src in ("callout", "opencopy", "mayhem") else "opencopy"
                     pos.source = pos.strategy
                     pos.stop_pct = None
             if callout_pos:
@@ -1260,7 +1347,7 @@ class PositionManager:
                 continue
 
             # Live: empty wallet OR dust (sell value ~0) → auto-drop and move on
-            if pos.mode == PositionMode.LIVE and getattr(pos, "_dust_check_at", 0) + 20 < now and not self._exit_urgent(pos):
+            if pos.mode == PositionMode.LIVE and getattr(pos, "_dust_check_at", 0) + 60 < now and not self._exit_urgent(pos):
                 pos._dust_check_at = now  # type: ignore[attr-defined]
                 try:
                     from src.execution.signer import pubkey_from_env
@@ -1413,7 +1500,12 @@ class PositionManager:
                                 )
                             except Exception:
                                 pass
-            if callout_pos and action is None:
+            try:
+                from src.config.runtime import hold_only_on
+                hold_now = bool(callout_pos) and hold_only_on()
+            except Exception:
+                hold_now = False
+            if callout_pos and action is None and not hold_now:   # hold mode: no AgeEnded, no copy stop
                 try:
                     from src.config.runtime import callout_sell_seconds, get_config
                     age_limit = callout_sell_seconds(getattr(get_config(), "callout_sell_age", "0"))
@@ -1424,7 +1516,7 @@ class PositionManager:
                     pos._sell_stopped = False
                     self._sell_cooldown.pop(pos.mint, None)
                     log.warning(
-                        "CALLOUT AGE mint=%s held %.0fs — indication %s, selling this trade in full",
+                        "AGE ENDED mint=%s held %.0fs — AgeEnded %s reached, selling this trade in full",
                         pos.mint[:8], hold, getattr(get_config(), "callout_sell_age", ""),
                     )
                     try:
@@ -1434,7 +1526,7 @@ class PositionManager:
                             level="WARNING",
                             detail=(
                                 f"{getattr(pos, 'symbol', '') or pos.mint[:8]} held {hold:.0f}s "
-                                f"— Callout sell indication {getattr(get_config(), 'callout_sell_age', '')}, selling 100%"
+                                f"— AgeEnded {getattr(get_config(), 'callout_sell_age', '')} reached, selling 100%"
                             ),
                             mint=pos.mint,
                             symbol=getattr(pos, "symbol", "") or "",
@@ -1442,13 +1534,18 @@ class PositionManager:
                     except Exception:
                         pass
 
-            if callout_pos and action is None:
+            if callout_pos and action is None and not hold_now:
                 try:
                     from src.config.runtime import get_config
                     copy_stop = float(getattr(get_config(), "copy_stop_pct", -15.0) or 0)
                 except (TypeError, ValueError):
                     copy_stop = 0.0
                 live_since = _shown_pct(pos)
+                if copy_stop < 0 and live_since is not None and float(live_since) <= copy_stop:
+                    if not _copy_stop_confirmed(pos, float(live_since), copy_stop, hold, now):
+                        live_since = None
+                else:
+                    pos._cs_breach_at = None
                 if copy_stop < 0 and live_since is not None and float(live_since) <= copy_stop:
                     action, frac = "copy_stop", 1.0
                     pos._sell_stopped = False
@@ -1468,7 +1565,7 @@ class PositionManager:
                 prev_peak = getattr(pos, "peak_since_pct", None)
                 pos.peak_since_pct = round(max(0.0, float(prev_peak or 0), float(shown_now)), 2)
             since = getattr(pos, "since_buy_pct", None)
-            if since is None and action not in ("dust_drop", "dust_unsellable", "manual_now", "callout_age", "caller_closed", "caller_drop_7", "m5_null"):
+            if since is None and action not in ("dust_drop", "dust_unsellable", "manual_now", "callout_age", "caller_closed", "caller_drop_7", "m5_null", "mayhem_paused"):
                 # No live price at the time stop is dust. Do not sell it.
                 limit = float(self.cfg.time_stop_seconds or 0)
                 try:
@@ -1993,6 +2090,22 @@ class PositionManager:
                                 pos.mint[:8], peak_pct, now_pct, retrace * 100.0, -drop * 100.0,
                             )
 
+            if action and callout_pos and action not in _HOLD_EXITS:
+                try:
+                    from src.config.runtime import hold_only_on
+                    hold_mode = hold_only_on()
+                except Exception:
+                    hold_mode = False
+                if hold_mode:
+                    if getattr(pos, "_hold_note", "") != action:
+                        pos._hold_note = action  # type: ignore[attr-defined]
+                        log.info(
+                            "HOLD mode mint=%s %s — %s skipped. Sells only when the caller sells or you sell.",
+                            pos.mint[:8], getattr(pos, "symbol", "") or "", action,
+                        )
+                    _drop_pending_tp(pos, action, pending_tp)   # un-mark a ladder step it did not sell
+                    action = None
+                    pending_tp = None
             if not action:
                 continue
 
@@ -2349,10 +2462,10 @@ class PositionManager:
             saved_px = float(getattr(pos, "entry_price_usd", 0) or 0)
             if saved_px > 0:
                 pos._pump_entry_px = saved_px
-                if pos.strategy in ("callout", "opencopy") or pos.source in ("callout", "opencopy"):
+                if pos.strategy in ("callout", "opencopy", "mayhem") or pos.source in ("callout", "opencopy", "mayhem"):
                     pos._entry_px_locked = True
                     pos._ath_from_entry = True
-            if pos.strategy in ("callout", "opencopy") or pos.source in ("callout", "opencopy"):
+            if pos.strategy in ("callout", "opencopy", "mayhem") or pos.source in ("callout", "opencopy", "mayhem"):
                 pos.stop_pct = None
             if pos.strategy == "predict" or pos.source == "predict" or pos.quick_entry:
                 bag = getattr(self, "_predict_mints", None)
@@ -2471,44 +2584,43 @@ class PositionManager:
             try:
                 from src.observability.dashboard import live_caller_name
                 source = str(getattr(p, "strategy", "") or getattr(p, "source", "") or "")
-                return live_caller_name(
+                name = live_caller_name(
                     getattr(p, "mint", "") or "",
                     source,
                     getattr(p, "callout_user", "") or "",
                 )
             except Exception:
                 return "No caller holds"
+            wallet = str(getattr(p, "callout_wallet", "") or "")
+            if name and name != "No caller holds" and getattr(p, "_led_user", "") != name + wallet:
+                # Trade History's CallUser: a buy booked before the name was known gets it now.
+                try:
+                    from src.observability.ledger import get_ledger
+                    get_ledger().fill_call_user(getattr(p, "mint", "") or "", name, wallet)
+                    p._led_user = name + wallet
+                except Exception:
+                    pass
+            return name
 
         def _callout_hold(p) -> str:
+            # Read-only. The caller watcher in main.py owns _caller_closed: it logs USERHOLDS OUT,
+            # kicks the caller-sold exit and decides the dropoff. A snapshot that set the flag first
+            # made that watcher see "already handled", so the exit never ran.
+            if getattr(p, "_caller_closed", False):
+                return "out"
             state = ""
             try:
                 from src.observability.dashboard import hold_for_mint
                 state = hold_for_mint(getattr(p, "mint", "") or "")
             except Exception:
                 state = ""
-            if state == "live":
-                if not getattr(p, "_caller_closed", False):
-                    p.user_holds = "live"
-                    p._caller_closed = False
-                    p._drop_was_neg = False
-                else:
-                    p.user_holds = "out"
-                return "live" if not getattr(p, "_caller_closed", False) else "out"
-            if state == "out":
-                p.user_holds = "out"
-                p._caller_closed = True
-                return "out"
+            if state in ("live", "out"):
+                return state
             return getattr(p, "user_holds", "") or ""
 
-        open_pos = [p for p in self.positions.values() if p.status == "OPEN"]
-        # A sold coin or a caller who has closed is not a live card. The book stays
-        # until the wallet is empty, but the panels must not keep showing it.
-        visible = []
-        for p in open_pos:
-            hold = _callout_hold(p)
-            if hold == "out" or getattr(p, "_caller_closed", False):
-                continue
-            visible.append(p)
+        # Every trade the bot still holds is a live card, the caller selling included. The card
+        # leaves only when the bot's own sell closes the trade (or it goes to dust).
+        visible = [p for p in self.positions.values() if p.status == "OPEN"]
         unreal = 0.0
         for p in visible:
             if getattr(p, "since_buy_pct", None) is not None:

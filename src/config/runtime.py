@@ -65,6 +65,20 @@ def openhold_auto_seconds(text: str | None = None) -> float:
     return secs if secs > 0 else 60.0
 
 
+def openhold_range() -> tuple[float, float]:
+    """(max percentage, max unrealized USD) for auto-open. Junk or <= 0 falls back to 5 and 100."""
+    cfg = get_config()
+    try:
+        pct = float(getattr(cfg, "openhold_max_pct", 5.0))
+    except (TypeError, ValueError):
+        pct = 5.0
+    try:
+        usd = float(getattr(cfg, "openhold_max_unreal_usd", 100.0))
+    except (TypeError, ValueError):
+        usd = 100.0
+    return (pct if pct > 0 else 5.0, usd if usd >= 0 else 100.0)
+
+
 def normalize_callout_sell_age(value) -> str | None:
     """Store '0' for off. None means the text is not an age and must not be saved."""
     text = str(value if value is not None else "").strip()
@@ -126,8 +140,14 @@ class RuntimeConfig:
     callout_enabled: bool = False
     # OpenHolds only. The Callout page scan still runs so the dropdown has callers.
     opencopy_enabled: bool = False
+    # Mayhem: OpenCopy rules, but only the one caller Mayhem_Mode (MayhemMode page).
+    mayhem_enabled: bool = False
     # Percent, not a fraction. -25 means a Callout trade at -25% may open the next one.
     callout_next_pct: float = -25.0
+    # First bank % or sell fraction left empty / 0: Callout and OpenCopy trades hold until the caller
+    # sells or you sell. No take-profit, Fast Pace, stop, AgeEnded or trail. The next-trade % is off;
+    # new trades open while Max concurrency has a free slot.
+    hold_only: bool = False
     # After the caller has sold and Since Buy has been negative, sell at this percent. Default +7.
     callout_drop_pct: float = 7.0
     # On: caller sold means sell this Callout in full now. Off: under +1% the trade and the pin stay.
@@ -135,9 +155,12 @@ class RuntimeConfig:
     # On: Callout and OpenCopy use Live Control trail start and drop-from-high. Off: they do not.
     callout_trailing: bool = False
     # "0" is off. "1h" sells a Callout trade in full once it has been open that long.
-    callout_sell_age: str = "0"
+    callout_sell_age: str = "1h"   # AgeEnded: a Callout/OpenCopy trade open this long sells in full. 0 is off.
     # OpenHolds auto-buy only. A coin older than this is not picked up. A click has no age limit.
     openhold_auto_age: str = "1m"
+    # Auto-open range. Fixed floors: unrealized >= $0.00 and percentage > 0%. These are the tops.
+    openhold_max_pct: float = 5.0
+    openhold_max_unreal_usd: float = 100.0
     # Real-time caller trades from the PumpPortal socket. Off: the polled pump.fun books only.
     copy_stream: bool = True
     # On: the socket seeing the caller sell everything sells this copy in full at once,
@@ -283,6 +306,8 @@ def ensure_source_switches(saved: Dict[str, Any] | None = None) -> None:
         patch["predict_enabled"] = False
     if "callout_enabled" not in saved:
         patch["callout_enabled"] = False
+    if "mayhem_enabled" not in saved:
+        patch["mayhem_enabled"] = cfg.filter_mode == "mayhem"
     if "opencopy_enabled" not in saved:
         patch["opencopy_enabled"] = cfg.filter_mode == "opencopy"
     if "callout_next_pct" not in saved:
@@ -294,9 +319,13 @@ def ensure_source_switches(saved: Dict[str, Any] | None = None) -> None:
     if "callout_trailing" not in saved:
         patch["callout_trailing"] = False
     if "callout_sell_age" not in saved:
-        patch["callout_sell_age"] = "0"
+        patch["callout_sell_age"] = "1h"
     if "openhold_auto_age" not in saved:
         patch["openhold_auto_age"] = "1m"
+    if "openhold_max_pct" not in saved:
+        patch["openhold_max_pct"] = 5.0
+    if "openhold_max_unreal_usd" not in saved:
+        patch["openhold_max_unreal_usd"] = 100.0
     if "copy_stream" not in saved:
         patch["copy_stream"] = True
     if "copy_follow_exit" not in saved:
@@ -345,3 +374,43 @@ def append_trade_journal(record: Dict[str, Any]) -> None:
             f.write(json.dumps(record, default=str) + "\n")
     except Exception:
         pass
+
+
+def hold_only_on() -> bool:
+    """Callout/OpenCopy hold mode: First bank % or sell fraction is empty or 0."""
+    try:
+        return bool(getattr(get_config(), "hold_only", False))
+    except Exception:
+        return False
+
+
+MAYHEM_USER = "Mayhem_Mode"
+MAYHEM_WALLET = "BwWK17cbHxwWBKZkUYvzxLcNQ1YVyaFezduWbtm2de6s"
+
+
+def mayhem_on() -> bool:
+    """Mayhem source picked in Live Controls."""
+    try:
+        cfg = get_config()
+        return str(getattr(cfg, "filter_mode", "") or "") == "mayhem" or bool(getattr(cfg, "mayhem_enabled", False))
+    except Exception:
+        return False
+
+
+def is_mayhem_user(name: str) -> bool:
+    return str(name or "").strip().casefold() == MAYHEM_USER.casefold()
+
+
+def copy_buy_source(user: str = "") -> str:
+    """Source tag for an OpenHolds/MayhemMode buy. A Mayhem_Mode coin is always 'mayhem'. Another
+    caller's coin is 'opencopy' when OpenCopy or Mayhem is on, else 'callout'."""
+    if is_mayhem_user(user):
+        return "mayhem"
+    try:
+        cfg = get_config()
+        mode = str(getattr(cfg, "filter_mode", "") or "")
+        if mode in ("opencopy", "mayhem") or getattr(cfg, "opencopy_enabled", False) or getattr(cfg, "mayhem_enabled", False):
+            return "opencopy"
+    except Exception:
+        pass
+    return "callout"

@@ -31,7 +31,7 @@ PUMP_PROGRAM = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"
 _TRADE_EVENT = bytes.fromhex("bddb7fd34ee661ee")
 # A caller balance under this many tokens is a full exit (dust left by rounding).
 _DUST_TOKENS = 1.0
-_MAX_MINTS = 150
+_MAX_MINTS = 220   # PumpPortal socket (free): OpenHolds coins plus the CallOuts coins
 _MAX_WALLETS = 60
 _SUBS_PER_TICK = 4   # logsSubscribe requests per 0.5s on the RPC fallback
 _MIN_VSOL = 30.0     # a standard pump curve never holds less virtual SOL
@@ -92,7 +92,7 @@ def _rpc_http() -> str:
     return "https://api.mainnet-beta.solana.com"
 
 
-def _token_balance(wallet: str, mint: str) -> Optional[float]:
+def _token_balance(wallet: str, mint: str, url: str = "", timeout: float = 1.5) -> Optional[float]:
     """Caller's UI balance of this coin right now. None when the RPC did not answer."""
     import urllib.request
 
@@ -100,9 +100,9 @@ def _token_balance(wallet: str, mint: str) -> Optional[float]:
         "jsonrpc": "2.0", "id": 1, "method": "getTokenAccountsByOwner",
         "params": [wallet, {"mint": mint}, {"encoding": "jsonParsed", "commitment": "processed"}],
     }).encode()
-    req = urllib.request.Request(_rpc_http(), data=body, headers={"Content-Type": "application/json"})
+    req = urllib.request.Request(url or _rpc_http(), data=body, headers={"Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=1.5) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read().decode() or "{}")
     except Exception:
         return None
@@ -200,6 +200,56 @@ class CallerStream:
         if price <= 0 or time.time() - ts > max_age:
             return None
         return price, ts
+
+    def _check_topup(self, key, tokens: float) -> None:
+        wallet, mint = key
+        try:
+            from src.config.runtime import MAYHEM_WALLET
+        except Exception:
+            MAYHEM_WALLET = ""
+        if wallet == MAYHEM_WALLET:
+            # Mayhem_Mode gets ~all of a Mayhem coin's supply when it is created, so its balance is
+            # always far above a buy. The coin's age decides: made in the last 5 minutes is a new
+            # open, older is a top-up of a coin it already held (SOL/PEPE was 3 hours old).
+            created = None
+            try:
+                from src.data.fast_get import pump_get
+                body = pump_get(f"https://frontend-api-v3.pump.fun/coins-v2/{mint}", timeout=1.4, cache_s=60)
+                created = float((body or {}).get("created_timestamp") or 0) / 1000.0 or None
+            except Exception:
+                created = None
+            with self._lock:
+                row = self._opens.get(key)
+                if row is None:
+                    return
+                row.pop("checking", None)
+                if created is not None and time.time() - created > 300:
+                    row["topup"] = True
+                    log.info("CALLER STREAM %s %s — coin made %.0f min ago: a top-up, not a new open",
+                             row.get("user") or wallet[:6], mint[:8], (time.time() - created) / 60)
+            return
+        # Paid RPC first (ordered failover; one ~1KB call per new caller buy), then a public node.
+        urls: List[str] = []
+        try:
+            from src.execution import rpc_pool
+            urls = list(rpc_pool.healthy_paid())[:2]
+        except Exception:
+            urls = []
+        urls.append("https://solana-rpc.publicnode.com")
+        left = None
+        for url in urls:
+            left = _token_balance(wallet, mint, url, timeout=0.5)
+            if left is not None:
+                break
+        with self._lock:
+            row = self._opens.get(key)
+            if row is None:
+                return
+            row.pop("checking", None)
+            if left is not None and left > tokens * 1.05:
+                row["topup"] = True
+                log.info("CALLER STREAM %s %s — top-up of a coin it already held (balance %.0f, bought %.0f): not a new open",
+                         row.get("user") or wallet[:6], mint[:8], left, tokens)
 
     def opens_for(self, wallet: str, since: float = 0.0) -> List[Dict[str, Any]]:
         wallet = str(wallet or "")
@@ -547,7 +597,19 @@ class CallerStream:
                 if row is None:
                     row = {"first_ts": now, "sol": 0.0, "tokens": 0.0, "user": user}
                     self._opens[key] = row
-                    event["new"] = True
+                    if balance is not None and tokens > 0 and balance > tokens * 1.05:
+                        # Balance after this buy is well above what it bought: the caller already
+                        # held this coin (bought before we watched, or older than pump's newest
+                        # page). A top-up, not a new open: never auto-copied as one.
+                        row["topup"] = True
+                    else:
+                        event["new"] = True
+                        if balance is None and tokens > 0:
+                            # RPC-log trades carry no balance: one free public-RPC read decides it.
+                            # The row waits at most 1.5s for it (checking), then counts as new.
+                            row["checking"] = now + 1.5
+                            threading.Thread(target=self._check_topup, args=(key, tokens),
+                                             name="topup-check", daemon=True).start()
                 row["sol"] = float(row["sol"]) + sol
                 row["tokens"] = float(row["tokens"]) + tokens
                 row["last_ts"] = now

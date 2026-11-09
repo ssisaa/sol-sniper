@@ -23,6 +23,14 @@ def get_lane() -> "FastLane":
     return _lane
 
 
+
+def _wallet_hot() -> None:
+    try:
+        from src.execution.wallet_tokens import wallet_hot
+        wallet_hot()
+    except Exception:
+        pass
+
 class FastLane:
     def __init__(self) -> None:
         self.started = False
@@ -102,6 +110,7 @@ class FastLane:
             self._buy_depth += 1
             started = time.perf_counter()
             log.info("BUY LANE %s — sending now", label)
+            _wallet_hot()
             try:
                 return await factory()
             finally:
@@ -124,6 +133,7 @@ class FastLane:
                 return False
             self.sells.add(mint)
             log.info("SELL LANE %s — sending now", label)
+            _wallet_hot()
             self.sell_q.put_nowait((mint, label, factory))
             return True
         asyncio.run_coroutine_threadsafe(self._enqueue_sell(mint, label, factory), self.loop)
@@ -135,6 +145,7 @@ class FastLane:
             return
         self.sells.add(mint)
         log.info("SELL LANE %s — sending now", label)
+        _wallet_hot()
         await self.sell_q.put((mint, label, factory))
 
     async def _sell_loop(self) -> None:

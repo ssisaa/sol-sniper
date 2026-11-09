@@ -175,6 +175,7 @@ td{padding:8px 6px;border-bottom:1px solid rgba(120,160,210,.08);vertical-align:
 #view-predict.view.on,
 #view-callouts.view.on,
 #view-openholds.view.on,
+#view-mayhem.view.on,
 #view-livetrades.view.on{
   display:flex;flex-direction:column;height:calc(100vh - 68px);min-height:0;overflow:hidden;
 }
@@ -186,6 +187,7 @@ td{padding:8px 6px;border-bottom:1px solid rgba(120,160,210,.08);vertical-align:
 #view-predict .page,
 #view-callouts .page,
 #view-openholds .page,
+#view-mayhem .page,
 #view-livetrades .page{
   flex:1;display:flex;flex-direction:column;min-height:0;width:100%;
 }
@@ -197,53 +199,96 @@ td{padding:8px 6px;border-bottom:1px solid rgba(120,160,210,.08);vertical-align:
 #view-predict .page > .card,
 #view-callouts .page > .card,
 #view-openholds .page > .card,
+#view-mayhem .page > .card,
 #view-livetrades .page > .card{
   flex:1;display:flex;flex-direction:column;min-height:0;
 }
 .page .scroll{flex:1;min-height:0;max-height:none;overflow:auto}
 .page .scroll th{position:sticky;top:0;background:#101722;z-index:2}
-#view-openholds .oh-user{text-align:center;font-size:22px;font-weight:800;letter-spacing:.04em;margin:18px 0 8px}
-#view-openholds .oh-user a{color:inherit;text-decoration:none}
-#view-openholds .oh-user a:hover{color:var(--blue,#6cb6ff)}
-#view-openholds .oh-title{display:flex;align-items:center;gap:10px}
-#view-openholds .oh-search{position:relative;min-width:240px;max-width:320px}
-#view-openholds .oh-pick{width:100%;min-width:240px;max-width:320px;padding:6px 8px}
-#view-openholds .oh-menu{
+#view-openholds .oh-user,#view-mayhem .oh-user{text-align:center;font-size:22px;font-weight:800;letter-spacing:.04em;margin:18px 0 8px}
+#view-openholds .oh-user a,#view-mayhem .oh-user a{color:inherit;text-decoration:none}
+#view-openholds .oh-user a:hover,#view-mayhem .oh-user a:hover{color:var(--blue,#6cb6ff)}
+#view-openholds .oh-title,#view-mayhem .oh-title{display:flex;align-items:center;gap:10px}
+#view-openholds .oh-search,#view-mayhem .oh-search{position:relative;min-width:240px;max-width:320px}
+#view-openholds .oh-pick,#view-mayhem .oh-pick{width:100%;min-width:240px;max-width:320px;padding:6px 8px}
+#view-openholds .oh-menu,#view-mayhem .oh-menu{
   position:absolute;left:0;top:calc(100% + 4px);width:100%;max-height:280px;overflow:auto;z-index:30;
   background:#101722;border:1px solid rgba(120,160,210,.35);border-radius:10px;
   box-shadow:0 12px 32px rgba(0,0,0,.45);
 }
-#view-openholds .oh-menu .oh-opt{
+#view-openholds .oh-menu .oh-opt,#view-mayhem .oh-menu .oh-opt{
   display:flex;justify-content:space-between;gap:12px;width:100%;text-align:left;
   padding:8px 10px;background:transparent;border:0;color:inherit;cursor:pointer;font:inherit;
 }
-#view-openholds .oh-menu .oh-opt:hover,
-#view-openholds .oh-menu .oh-opt.on{background:rgba(108,182,255,.16)}
-#view-openholds .oh-menu .usd{color:var(--muted,#8aa0b8);font-variant-numeric:tabular-nums;white-space:nowrap}
-#view-openholds .oh-menu .oh-empty{padding:8px 10px;color:var(--muted,#8aa0b8);font-size:13px}
-#view-openholds .oh-exist{text-align:right;margin:-6px 0 6px}
-#view-openholds .oh-exist a{font-size:13px;font-weight:700}
-#view-openholds td.flash-up{animation:ltFlashUp .18s ease}
-#view-openholds td.flash-down{animation:ltFlashDown .18s ease}
-#view-openholds td.flash-live{animation:ltFlashLive .18s ease}
+#view-openholds .oh-menu .oh-opt:hover,#view-mayhem .oh-menu .oh-opt:hover,
+#view-openholds .oh-menu .oh-opt.on,
+#view-mayhem .oh-menu .oh-opt.on{background:rgba(108,182,255,.16)}
+#view-openholds .oh-menu .usd,#view-mayhem .oh-menu .usd{color:var(--muted,#8aa0b8);font-variant-numeric:tabular-nums;white-space:nowrap}
+#view-openholds .oh-menu .oh-empty,#view-mayhem .oh-menu .oh-empty{padding:8px 10px;color:var(--muted,#8aa0b8);font-size:13px}
+#view-openholds .oh-exist,#view-mayhem .oh-exist{text-align:right;margin:-6px 0 6px}
+#view-callouts .oh-blocked,#view-openholds .oh-blocked,#view-mayhem .oh-blocked{margin:0 0 12px;padding:10px 12px;border:1px solid rgba(240,180,60,.45);border-left:4px solid #f0b43c;border-radius:10px;background:rgba(240,180,60,.08)}
+#view-callouts .oh-blocked h3,#view-openholds .oh-blocked h3,#view-mayhem .oh-blocked h3{margin:0 0 6px;font-size:13px;color:#f0b43c;letter-spacing:.02em}
+#view-callouts .oh-blocked ul,#view-openholds .oh-blocked ul,#view-mayhem .oh-blocked ul{margin:0;padding:0;list-style:none;display:grid;gap:4px}
+#view-callouts .oh-blocked li,#view-openholds .oh-blocked li,#view-mayhem .oh-blocked li{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;font-size:12px}
+#view-callouts .oh-blocked .sym,#view-openholds .oh-blocked .sym,#view-mayhem .oh-blocked .sym{font-weight:700}
+#view-callouts .oh-blocked .why,#view-openholds .oh-blocked .why,#view-mayhem .oh-blocked .why{color:#f0b43c}
+#view-callouts .oh-blocked .left,#view-openholds .oh-blocked .left,#view-mayhem .oh-blocked .left{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--muted)}
+#view-openholds .oh-exist a,#view-mayhem .oh-exist a{font-size:13px;font-weight:700}
+#view-openholds td.flash-up,#view-mayhem td.flash-up{animation:ltFlashUp .18s ease}
+#view-openholds td.flash-down,#view-mayhem td.flash-down{animation:ltFlashDown .18s ease}
+#view-openholds td.flash-live,#view-mayhem td.flash-live{animation:ltFlashLive .18s ease}
 @keyframes ltFlashLive{0%{background:rgba(140,180,255,.32)}100%{background:transparent}}
-#view-openholds .r,#view-openholds .v.r{color:var(--red)}
-#view-openholds .oh-pin{
+#view-openholds .r,#view-mayhem .r,#view-openholds .v.r,#view-mayhem .v.r{color:var(--red)}
+#view-openholds .oh-pin,#view-mayhem .oh-pin{
   display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;
   font-size:11px;font-weight:800;letter-spacing:.06em;vertical-align:middle;
   color:#042016;background:#3ee0a0;
 }
-#view-openholds .oh-user.pinned{color:#b8ffe0}
-#view-openholds tr.oh-hold{background:rgba(61,214,140,.14)}
-#view-openholds tr.oh-hold td{box-shadow:inset 3px 0 0 #3ee0a0}
-#view-openholds tr.oh-buy{background:rgba(108,182,255,.10)}
-#view-openholds tr.oh-buy td{box-shadow:inset 3px 0 0 #6cb6ff}
-#view-openholds .oh-block{margin:0 0 18px;padding:8px 8px 12px;border:1px solid rgba(120,160,210,.16);border-radius:12px;background:rgba(14,22,36,.55)}
-#view-openholds .oh-block.pinned{border-color:rgba(62,224,160,.45);background:rgba(20,48,38,.45)}
-#view-openholds th,#view-openholds td{
+#view-openholds .oh-user.pinned,#view-mayhem .oh-user.pinned{color:#b8ffe0}
+#view-openholds tr.oh-hold,#view-mayhem tr.oh-hold{background:rgba(61,214,140,.14)}
+#view-openholds tr.oh-hold td,#view-mayhem tr.oh-hold td{box-shadow:inset 3px 0 0 #3ee0a0}
+#view-openholds tr.oh-buy,#view-mayhem tr.oh-buy{background:rgba(108,182,255,.10)}
+#view-openholds tr.oh-buy td,#view-mayhem tr.oh-buy td{box-shadow:inset 3px 0 0 #6cb6ff}
+#view-openholds .oh-block,#view-mayhem .oh-block{margin:0 0 18px;padding:8px 8px 12px;border:1px solid rgba(120,160,210,.16);border-radius:12px;background:rgba(14,22,36,.55)}
+#view-openholds .oh-block.pinned,#view-mayhem .oh-block.pinned{border-color:rgba(62,224,160,.45);background:rgba(20,48,38,.45)}
+#view-openholds th,#view-mayhem th,#view-openholds td,#view-mayhem td{
   white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.3;padding:6px 4px;
 }
-#view-openholds td.keep,#view-openholds th.keep{white-space:nowrap;overflow-wrap:normal;word-break:normal}
+#view-openholds td.keep,#view-mayhem td.keep,#view-openholds th.keep,#view-mayhem th.keep{white-space:nowrap;overflow-wrap:normal;word-break:normal}
+#view-mayhem .mh-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}
+#view-mayhem .mh-who{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+#view-mayhem .mh-who h2{margin:0}
+#view-mayhem .mh-caller{font-weight:800;color:var(--blue,#6cb6ff);text-decoration:none}
+#view-mayhem .mh-pill{padding:3px 10px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.04em;border:1px solid rgba(138,160,184,.35);color:var(--muted,#8aa0b8)}
+#view-mayhem .mh-pill.on{color:#042016;background:#3ee0a0;border-color:#3ee0a0}
+#view-mayhem .mh-pill.off{color:#f0b43c;border-color:rgba(240,180,60,.55)}
+#view-mayhem .mh-stats{display:flex;flex-wrap:wrap;gap:8px}
+#view-mayhem .mh-stat{min-width:92px;padding:6px 12px;border-radius:10px;border:1px solid rgba(120,160,210,.18);background:rgba(14,22,36,.55)}
+#view-mayhem .mh-stat span{display:block;font-size:11px;color:var(--muted,#8aa0b8)}
+#view-mayhem .mh-stat b{font-size:17px;font-variant-numeric:tabular-nums}
+#view-mayhem .mh-stat.g b{color:#3ee0a0}
+#view-mayhem .mh-stat.w b{color:#f0b43c}
+#view-mayhem .mh-help{margin:0 0 10px;font-size:12px;color:var(--muted,#8aa0b8)}
+#view-mayhem .mh-help summary{cursor:pointer;font-weight:700}
+#view-mayhem .mh-notes{margin:0 0 10px;padding:8px 12px;border:1px solid rgba(120,160,210,.22);border-radius:10px;background:rgba(14,22,36,.55)}
+#view-mayhem .mh-notes-head{font-size:13px;margin-bottom:4px}
+#view-mayhem .mh-notes ul{margin:0;padding:0;list-style:none;max-height:132px;overflow:auto;display:grid;gap:3px}
+#view-mayhem .mh-notes li{display:flex;gap:10px;font-size:12px;align-items:baseline}
+#view-mayhem .mh-notes li .t{color:var(--muted,#8aa0b8);font-variant-numeric:tabular-nums;white-space:nowrap}
+#view-mayhem .mh-notes li.warn .m{color:#f0b43c}
+#view-mayhem .mh-notes li.buy .m,#view-mayhem .mh-notes li.ok .m{color:#3ee0a0}
+#view-mayhem .mh-notes li.sell .m,#view-mayhem .mh-notes li.error .m{color:#ff5d73}
+#view-mayhem .mh-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px}
+#view-mayhem .mh-tabs button{padding:6px 12px;border-radius:999px;border:1px solid rgba(120,160,210,.3);background:transparent;color:inherit;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+#view-mayhem .mh-tabs button span{margin-left:4px;color:var(--muted,#8aa0b8);font-variant-numeric:tabular-nums}
+#view-mayhem .mh-tabs button.on{background:rgba(108,182,255,.18);border-color:#6cb6ff}
+#view-mayhem .mh-sec{margin:6px 0 4px;font-size:13px;font-weight:800;letter-spacing:.04em;color:var(--muted,#8aa0b8)}
+#view-mayhem .mh-sec.g{color:#3ee0a0}
+#view-mayhem .oh-user,#view-mayhem .oh-exist{display:none}
+#view-mayhem .oh-block{margin:0 0 12px}
+#view-mayhem .mh-empty{padding:14px;color:var(--muted,#8aa0b8);font-size:13px}
+#view-mayhem table.mh-block td.why{color:#f0b43c}
+#view-mayhem table.mh-block td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
 #view-callouts th,#view-callouts td{white-space:normal;word-break:break-word;overflow:hidden;line-height:1.35}
 #view-callouts .sub{display:block;margin-top:2px;color:var(--muted);font-size:12px}
 #view-callouts td.v.g,#view-callouts td.v.g .sub{color:var(--green)}
@@ -350,6 +395,7 @@ body:has(#view-coins.on) footer,
 body:has(#view-decoded.on) footer,
 body:has(#view-callouts.on) footer,
 body:has(#view-openholds.on) footer,
+body:has(#view-mayhem.on) footer,
 body:has(#view-livetrades.on) footer{display:none}
 #view-dash.view.on{display:block}
 #view-dash .wrap{height:auto;overflow:visible;align-items:start;grid-template-rows:none}
@@ -419,7 +465,7 @@ button.lite:hover{color:#fff;border-color:#eef3fb}
       <button type="button" class="navbtn" data-view="ledger">Trade Ledger</button>
       <button type="button" class="navbtn" data-view="history">Trade History</button>
       <button type="button" class="navbtn" data-view="exec">Execution History</button>
-      <button type="button" class="navbtn" data-view="coins">All Coins</button>
+      <button type="button" class="navbtn" data-view="mayhem">MayhemMode</button>
       <button type="button" class="navbtn" data-view="decoded">Decoded Tokens</button>
       <button type="button" class="navbtn" data-view="callouts">CallOuts</button>
       <button type="button" class="navbtn" data-view="openholds">OpenHolds</button>
@@ -500,16 +546,17 @@ button.lite:hover{color:#fff;border-color:#eef3fb}
       <option value="predict">predict (Pump tape open)</option>
       <option value="callout">callout (CallOuts OPEN only)</option>
       <option value="opencopy">opencopy (OpenHolds only)</option>
+      <option value="mayhem">mayhem (MayhemMode · Mayhem_Mode only)</option>
     </select>
     <label class="field">Max position (SOL)</label>
-    <input id="cfg_max_position_sol" type="number" step="0.01" min="0.01"/>
+    <input id="cfg_max_position_sol" type="number" step="0.001" min="0.001" title="SOL per buy. Also sets Fast Pace max position."/>
     <label class="field">Min liquidity (SOL)</label>
     <input id="cfg_min_liquidity_sol" type="number" step="0.1" min="0"/>
     <label class="field">Time stop (seconds, 0 = off)</label>
     <input id="cfg_time_stop_seconds" type="number" step="1" min="0"/>
     <label class="field">Hard stop (0 = off). -0.30 sells Callout, OpenCopy, and Predict at -30%.</label>
     <input id="cfg_hard_stop_pct" type="number" step="0.01" max="0"/>
-    <label class="field">First bank % / sell fraction</label>
+    <label class="field">First bank % / sell fraction. Empty or 0 = hold mode for Callout and OpenCopy: no take-profit or other sell rule, sells only when the caller sells or you sell, and new trades open on free Max concurrency slots.</label>
     <div class="grid2">
       <input id="cfg_tp1" type="number" step="0.01" min="0" title="0.25 means +25%"/>
       <input id="cfg_tp1_frac" type="number" step="0.05" min="0.05" max="1" title="0.50 sells half"/>
@@ -751,18 +798,35 @@ button.lite:hover{color:#fff;border-color:#eef3fb}
         <input id="set_callout_trailing" type="checkbox"/>
       </label>
       <p class="hint" id="setTrailMsg">Off: Callout and OpenCopy ignore trailing and retrace. On: they use Trail starts at and drop from the high in Live Control. 0 on either of those still means the trail is off.</p>
-      <label class="field">Callout sell indication</label>
+      <label class="field">AgeEnded — Callout &amp; OpenCopy</label>
       <div class="grid2" style="max-width:420px">
-        <input id="set_callout_sell_age" type="text" value="0" placeholder="0" autocomplete="off"/>
+        <input id="set_callout_sell_age" type="text" value="1h" placeholder="1h" autocomplete="off"/>
         <button type="button" class="btn" id="btnSaveCalloutAge">Save</button>
       </div>
-      <p class="hint" id="setCalloutAgeMsg">0 does not sell. That is the default. To sell by age, type a duration such as 1m, 2m, 5m, or 1h. A Callout open at least that long sells in full. A 5m of 0, a negative number, or a null 5m does not sell. A failed request is not a null 5m, so that does not sell.</p>
+      <p class="hint" id="setCalloutAgeMsg">Default 1h. A Callout or OpenCopy trade stays open until the caller sells it, you sell it, or another exit fires. When it has been open this long (counted from the bot's buy), it sells in full. Type 2h, 3h, 5h, 1d, 2d, or minutes such as 45m. 0 turns it off.</p>
       <label class="field" style="margin-top:14px">OpenHolds auto-open window</label>
       <div class="grid2" style="max-width:420px">
         <input id="set_openhold_auto_age" type="text" value="1m" placeholder="1m" autocomplete="off"/>
         <button type="button" class="btn" id="btnSaveOpenholdAuto">Save</button>
       </div>
       <p class="hint" id="setOpenholdAutoMsg">Default 1m. Auto-buy only picks a coin opened inside this window. Type 2m, 3m, 5m, or 1h to widen it. A clicked Buy has no age limit.</p>
+      <label class="field" style="margin-top:14px">OpenHolds auto-open range</label>
+      <div class="grid2" style="max-width:520px;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end">
+        <label class="field" style="margin:0">Percentage top (%)
+          <input id="set_openhold_max_pct" type="number" step="0.5" min="0.1" value="5" autocomplete="off"/>
+        </label>
+        <label class="field" style="margin:0">Unrealized top (USD)
+          <input id="set_openhold_max_usd" type="number" step="1" min="0" value="100" autocomplete="off"/>
+        </label>
+        <button type="button" class="btn" id="btnSaveOpenholdRange">Save</button>
+      </div>
+      <p class="hint" id="setOpenholdRangeMsg">Auto-buy opens a caller's new coin only when unrealized is $0.00 up to the USD top, and percentage is above 0% up to the % top. The $0.00 and 0% floors are fixed. Defaults: 5% and $100. A clicked Buy ignores this range.</p>
+      <label class="field" style="margin-top:14px">Callout next trade (%)</label>
+      <div class="grid2" style="max-width:420px">
+        <input id="set_callout_next_pct" type="number" step="1" max="0" value="-25" autocomplete="off"/>
+        <button type="button" class="btn" id="btnSaveCalloutNext">Save</button>
+      </div>
+      <p class="hint" id="setCalloutNextMsg">Default −25. While a Callout trade is open, the next Callout coin opens only when that trade reaches this percent since buy, or when it closes. It never sells. A clicked Buy on the CallOuts page skips this wait.</p>
       <h2 style="margin-top:18px">Copy speed &amp; protection</h2>
       <label class="set-switch">Real-time caller stream
         <input id="set_copy_stream" type="checkbox"/>
@@ -790,9 +854,9 @@ button.lite:hover{color:#fff;border-color:#eef3fb}
       <div class="scroll">
         <table>
           <thead><tr>
-            <th>Time</th><th>Event</th><th>Token</th><th>SOL in</th><th>SOL out</th><th>Token price</th><th>5m %</th><th>1m %</th><th>1s %</th><th>1h %</th><th>% since buy</th><th>ATH</th><th>Result</th><th>Why</th><th>Tx</th>
+            <th>Time</th><th>Event</th><th>Token</th><th>CallUser</th><th>SOL in</th><th>SOL out</th><th>Token price</th><th>5m %</th><th>1m %</th><th>1s %</th><th>1h %</th><th>% since buy</th><th>ATH</th><th>Result</th><th>Why</th><th>Tx</th>
           </tr></thead>
-          <tbody id="histBody"><tr><td colspan="15" class="muted">No trades yet</td></tr></tbody>
+          <tbody id="histBody"><tr><td colspan="16" class="muted">No trades yet</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -806,12 +870,12 @@ button.lite:hover{color:#fff;border-color:#eef3fb}
         <h2 style="margin:0">Execution history</h2>
         <span class="muted" id="execCount">wallet</span>
       </div>
-      <p class="hint">Latest 50 transactions from the wallet. Older than 50 are dropped. Symbol, SOL, and token amount come from the transaction itself.</p>
+      <p class="hint">Latest 50 transactions from the wallet. Older than 50 are dropped. SOL and token amount come from the transaction itself. Reason is why the bot made it. SELL is the swap only. RENT is the token-account deposit coming back after a sell, in its own transaction. FAILED landed on chain but did nothing; only its network fee was paid.</p>
       <div class="scroll">
         <table>
           <thead><tr>
             <th>Time</th><th>Side</th><th>Token</th><th>SOL</th><th>Tokens</th>
-            <th>Status</th><th>Route</th><th>Source</th><th>Tx</th>
+            <th>Reason</th><th>Status</th><th>Route</th><th>Source</th><th>Tx</th>
           </tr></thead>
           <tbody id="execBody"></tbody>
         </table>
@@ -869,6 +933,39 @@ button.lite:hover{color:#fff;border-color:#eef3fb}
   </div>
 </div>
 
+<div id="view-mayhem" class="view" data-view="mayhem">
+  <div class="page">
+    <div class="card">
+      <div class="mh-head">
+        <div class="mh-who">
+          <h2>MayhemMode</h2>
+          <a class="mh-caller" href="https://pump.fun/profile/BwWK17cbHxwWBKZkUYvzxLcNQ1YVyaFezduWbtm2de6s" target="_blank" rel="noopener">Mayhem_Mode ↗</a>
+          <span class="mh-pill" id="mhSource">source …</span>
+          <span class="mh-pill" id="mhBook">book …</span>
+        </div>
+        <div class="mh-stats">
+          <div class="mh-stat"><span>Wallet</span><b id="mhWallet">—</b></div>
+          <div class="mh-stat g"><span>Holding</span><b id="mhHoldN">0</b></div>
+          <div class="mh-stat"><span>New ≤3m</span><b id="mhNewN">0</b></div>
+          <div class="mh-stat w"><span>Held back</span><b id="mhBlockN">0</b></div>
+        </div>
+      </div>
+      <details class="mh-help"><summary>How Mayhem works</summary>
+        One caller only: Mayhem_Mode. With <b>mayhem</b> picked in Live Controls the bot copies this caller with the OpenCopy rules: a new open inside the auto-open window and range is bought when a slot is free (Max concurrency), and the trade sells when Mayhem_Mode sells, or by the exit rules when First bank is set. Coins the bot bought stay in Holding until the trade closes. New is the last 3 minutes; older coins are not shown or read (a coin the bot holds always stays). Buy and Sell act only on the row you click.
+      </details>
+      <div class="mh-notes" id="mhNotesBox">
+        <div class="mh-notes-head"><b>Messages</b> <span class="muted" id="mhNotesN">none yet</span></div>
+        <ul id="mhNotes"></ul>
+      </div>
+      <div class="mh-tabs" id="mhTabs">
+        <button type="button" data-tab="new" class="on">New ≤3m <span id="mhTabNew">0</span></button>
+        <button type="button" data-tab="blocked">Held back <span id="mhTabBlock">0</span></button>
+      </div>
+      <div class="scroll" id="mayhemScroll"></div>
+    </div>
+  </div>
+</div>
+
 <div id="view-openholds" class="view" data-view="openholds">
   <div class="page">
     <div class="card">
@@ -883,7 +980,8 @@ button.lite:hover{color:#fff;border-color:#eef3fb}
         </div>
         <span class="muted" id="openHoldsMeta">loading</span>
       </div>
-      <p class="hint">Pinned Callout holders stay. Search a caller name, then click a match to add that caller. You can pick more than one. Open existing is coins opened in the last hour, plus any coin this bot is still holding. A holding coin stays until the caller closes it, even after one hour. Other coins move to Hide existing after one hour. Clear on a table removes that caller only. Clear next to the search removes every caller you added. Buy and Sell act only on the row you click.</p>
+      <p class="hint">OpenHolds shows only the callers you add here and the OpenCopy trades the bot holds; Callout trades stay on CallOuts. Search a caller name, then click a match to add that caller. You can pick more than one. Coins this bot bought sit in the caller's Holding table until the trade closes, however long that takes. Open existing is coins opened in the last 15 minutes that the bot has not bought. After 15 minutes other coins move to Hide existing, which keeps them until they are 1 hour old. Older coins, and the caller&#39;s dust, spam, and hidden coins, are not shown or streamed. Clear on a table removes that caller only. Clear next to the search removes every caller you added. Buy and Sell act only on the row you click.</p>
+      <div class="oh-blocked" id="openHoldsBlocked" hidden></div>
       <div class="scroll" id="openHoldsScroll"></div>
     </div>
   </div>
@@ -893,19 +991,20 @@ button.lite:hover{color:#fff;border-color:#eef3fb}
   <div class="page">
     <div class="card">
       <div class="row-between"><h2 style="margin:0">CallOuts</h2><span class="muted" id="calloutCount">loading</span></div>
-      <p class="hint">Open bot trades stay at the top. HOLDING is the one it bought. A closed trade leaves the pin. 5m and 1h are that coin's tape. The bot does not buy an OPEN when 5m is missing, zero, or negative.</p>
+      <p class="hint">Pump.fun coins only: each caller's latest open pump coin, listed only for the first 5 minutes after it was opened. Pinned rows and the coin the bot is HOLDING stay whatever their age. Other tokens are not listed. Open bot trades stay at the top. HOLDING is the one it bought. A closed trade leaves the pin. 5m and 1h are that coin's tape. Auto-trade buys a Call OPEN row only inside Settings &gt; OpenHolds auto-open range (unrealized $0.00 up to the USD top, percentage above 0% up to the % top), the same rule as OpenCopy. While a Callout trade is open, the next coin waits until that trade reaches the Callout next trade % (default −25%) or closes. Buy and Sell act on that row only; a clicked Buy opens even while another trade holds the slot.</p>
+      <div class="oh-blocked" id="calloutBlocked" hidden></div>
       <div class="scroll">
         <table>
           <colgroup>
             <col style="width:7%"><col style="width:6%"><col style="width:6%"><col style="width:8%"><col style="width:5%">
             <col style="width:5%"><col style="width:6%"><col style="width:8%"><col style="width:6%">
             <col style="width:5%"><col style="width:5%"><col style="width:10%"><col style="width:6%">
-            <col style="width:6%"><col style="width:5%"><col style="width:6%">
+            <col style="width:6%"><col style="width:5%"><col style="width:6%"><col style="width:5%">
           </colgroup>
           <thead><tr>
             <th>userName</th><th>Wallet</th><th>coinMint</th><th>Name</th><th>Ticker</th>
             <th>Price</th><th>Cost</th><th>Unrealized</th><th>Realized</th><th>5m</th><th>1h</th>
-            <th>Call</th><th>Status</th><th>AgeOpened</th><th>Wallet $</th><th>Links</th>
+            <th>Call</th><th>Status</th><th>AgeOpened</th><th>Wallet $</th><th>Links</th><th>Trade</th>
           </tr></thead>
           <tbody id="calloutBody"></tbody>
         </table>
@@ -1197,12 +1296,27 @@ function _ticker(e){
   if(!bad(name)) return name;
   return shortMint(mint);
 }
+function execWhy(e, side){
+  const r=String(e.reason||'').replace(/\s*rent_back$/,'').trim();
+  if(side==='RENT') return 'Token account closed — deposit back';
+  if(side==='FAILED') return 'Failed on chain — fee only';
+  if(side==='FEE') return 'Network fee';
+  if(side==='SENT'){ const to=r.replace(/^sent_to:/,''); return '⚠ SOL sent out of this wallet to '+(to?to.slice(0,6)+'…'+to.slice(-4):'another wallet')+' — not a trade, not a fee'; }
+  if(side==='RECEIVED'){ const fr=r.replace(/^received_from:/,''); return 'SOL received from '+(fr?fr.slice(0,6)+'…'+fr.slice(-4):'another wallet'); }
+  if(String(e.source||'')==='bot'){
+    const label={callout:'Callout buy',opencopy:'OpenCopy buy',mayhem:'Mayhem buy',predict:'Predict buy',entry:'Bot buy',buy:'Bot buy'}[r];
+    if(label) return label;
+    return plainWhy(r);
+  }
+  if(r==='wallet_swap') return 'Wallet swap (not the bot)';
+  return plainWhy(r);
+}
 function renderExecHistory(entries){
   const body=document.getElementById('execBody');
   if(!body)return;
   const rows=(entries||[]).filter(e=>{
     const side=(e.side||'').toUpperCase();
-    return side==='BUY' || side==='SELL' || side==='FEE' || side==='TX' || e.mint || e.signature || Number(e.sol_amount||0)>0;
+    return side==='BUY' || side==='SELL' || side==='FEE' || side==='SENT' || side==='RECEIVED' || side==='RENT' || side==='FAILED' || side==='TX' || e.mint || e.signature || Number(e.sol_amount||0)>0;
   }).slice().sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,50);
   window._coinNames=window._coinNames||{};
   (ledgerCache.entries||[]).forEach(row=>{
@@ -1214,7 +1328,12 @@ function renderExecHistory(entries){
   body.innerHTML=rows.map(e=>{
     const t=e.ts?new Date(e.ts*1000).toLocaleTimeString():'';
     const side=(e.side||'').toUpperCase();
-    const sideCls=side==='BUY'?'g':(side==='SELL'?'r':'');
+    const sideCls=side==='BUY'?'g':(side==='SELL'||side==='SENT'?'r':(side==='FAILED'?'muted':(side==='RECEIVED'?'g':'')));
+    const why=execWhy(e, side);
+    const solTxt=side==='FAILED'
+      ? '−'+Number(e.sol_amount||0).toFixed(6)
+      : (side==='RENT' ? '+'+Number(e.sol_amount||0).toFixed(6)
+        : (side==='SENT' ? '−'+Number(e.sol_amount||0).toFixed(4) : (side==='RECEIVED' ? '+'+Number(e.sol_amount||0).toFixed(4) : Number(e.sol_amount||0).toFixed(4))));
     const st=(e.status||'');
     const tx=e.solscan_tx
       ?`<a href="${e.solscan_tx}" target="_blank" rel="noopener">tx</a>`
@@ -1225,8 +1344,9 @@ function renderExecHistory(entries){
       <td>${t}</td>
       <td class="${sideCls}"><strong>${side}</strong></td>
       <td title="${e.mint||''}"><strong>${ticker}</strong></td>
-      <td>${Number(e.sol_amount||0).toFixed(4)}</td>
-      <td>${fmtAmt(e.token_amount)}</td>
+      <td>${solTxt}</td>
+      <td>${side==='RENT'||side==='FAILED'?'—':fmtAmt(e.token_amount)}</td>
+      <td>${why}</td>
       <td>${st}</td>
       <td>${e.route||''}</td>
       <td>${e.source||''}</td>
@@ -1256,7 +1376,7 @@ function fmtTokens(p){
 function fmtAmt(n){
   n=Number(n||0);
   if(!isFinite(n)||n<=0) return '—';
-  if(n>=1e7) n=n/1e6;
+  if(n>1e9) n=n/1e6;   // older rows stored raw units; a pump coin has 1B in total
   return n>=1000
     ? n.toLocaleString(undefined,{maximumFractionDigits:0})
     : n.toLocaleString(undefined,{maximumFractionDigits:2});
@@ -1283,10 +1403,14 @@ function plainWhy(code){
   if(!raw) return '—';
   if(raw==='m5_null') return '5m percent was null';
   if(raw==='manual_now') return 'Sold with the −1 button';
-  if(raw==='caller_closed') return 'Caller left and since-buy was at least +1%';
+  if(raw==='mayhem_paused') return 'Mayhem paused — pump paused this coin, sold';
+  if(raw==='caller_closed') return 'Caller sold — the copy followed the caller out';
+  if(raw==='fast_pace_sell') return 'Fast Pace target hit';
+  if(raw==='copy_stop') return 'Copy stop-loss hit';
+  if(raw==='trailing_stop') return 'Trailing stop hit';
   if(raw==='caller_drop_7') return 'Caller already left. Since-buy came back from negative and touched the recovery percent';
   if(raw==='wallet_already_sold') return 'Wallet had already sold it';
-  if(raw==='callout_age') return 'Age limit reached';
+  if(raw==='callout_age') return 'AgeEnded reached — sold in full';
   if(raw==='dust_drop'||raw==='dust_unsellable'||raw==='dust_left') return 'Marked dust — left in the wallet';
   if(raw==='not_in_wallet'||raw==='empty_wallet') return 'Not in the wallet';
   if(raw==='sold_under_cost') return 'Sold below cost';
@@ -1307,7 +1431,9 @@ function fmtPx(v){
   if(n>=1) return '$'+n.toFixed(4);
   if(n>=0.01) return '$'+n.toFixed(4);
   if(n>=0.0001) return '$'+n.toFixed(6);
-  return '$'+n.toPrecision(4);
+  // Plain decimals with 4 significant digits, never 1.947e-7.
+  const d=Math.min(18, Math.ceil(-Math.log10(n))+3);
+  return '$'+n.toFixed(d);
 }
 function paintLedger(){
   const body=document.getElementById('ledgerBody');
@@ -1500,6 +1626,7 @@ function srcName(s){
   if(v==='dayscalp') return 'Dayscalp';
   if(v==='predict') return 'Predict';
   if(v==='opencopy') return 'opencopy';
+  if(v==='mayhem') return 'mayhem';
   if(v==='callout') return 'callout';
   if(v==='wallet_resume'||v==='wallet_reconcile'||v==='ledger_restore') return '—';
   return s?String(s):'—';
@@ -1511,6 +1638,9 @@ function renderLedger(entries, summary){
   ledgerCache={entries:incoming, summary:summary||{}};
   paintLedger();
   paintHistory(ledgerCache.entries);
+}
+function escapeHtml(v){
+  return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 function paintHistory(entries){
   const body=document.getElementById('histBody');
@@ -1549,6 +1679,9 @@ function paintHistory(entries){
       result:'bought',
       cls:'g',
       why:srcName((match&&match.source)||first.source),
+      src:(match&&match.source)||first.source,
+      user:(match&&match.call_user)||first.call_user||'',
+      wallet:(match&&match.call_wallet)||first.call_wallet||'',
       tx:(match&&match.solscan_tx)||first.solscan_tx||'',
       px:buyPx,
       since:null,
@@ -1575,6 +1708,9 @@ function paintHistory(entries){
         result,
         cls,
         why:plainWhy(c.reason),
+        src:c.source||(match&&match.source),
+        user:c.call_user||(match&&match.call_user)||'',
+        wallet:c.call_wallet||(match&&match.call_wallet)||'',
         tx:c.solscan_tx||'',
         px:pxNum(c.price_usd)||buyPx,
         since:c.since_buy_pct,
@@ -1597,6 +1733,9 @@ function paintHistory(entries){
       result:'open',
       cls:'g',
       why:srcName(o.source),
+      src:o.source,
+      user:o.call_user||'',
+      wallet:o.call_wallet||'',
       tx:o.solscan_tx||'',
       px:o.price_usd,
       since:o.since_buy_pct,
@@ -1608,10 +1747,16 @@ function paintHistory(entries){
   const n=document.getElementById('histCount');
   if(n) n.textContent=events.length+' events';
   if(!events.length){
-    body.innerHTML='<tr><td colspan="15" class="muted">No trades yet</td></tr>';
+    body.innerHTML='<tr><td colspan="16" class="muted">No trades yet</td></tr>';
     return;
   }
   body.innerHTML=events.map(e=>{
+    const copySrc=['callout','opencopy','mayhem'].includes(String(e.src||'').toLowerCase());
+    const callUser=!copySrc?'<span class="muted">-</span>'
+      :(!e.user?'<span class="muted" title="Bought before CallUser was recorded">not recorded</span>'
+        :(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(String(e.wallet||''))
+          ?`<a href="https://pump.fun/profile/${e.wallet}" target="_blank" rel="noopener" title="Open ${escapeHtml(e.user)} on pump.fun">${escapeHtml(e.user)}</a>`
+          :escapeHtml(e.user)));
     const ticker=e.symbol||shortMint(e.mint);
     const tx=e.tx?`<a href="${e.tx}" target="_blank" rel="noopener">tx</a>`:'—';
     const solIn=e.kind==='SELL'&&Number(e.sol)>0?Number(e.sol).toFixed(4):'—';
@@ -1620,6 +1765,7 @@ function paintHistory(entries){
       <td class="muted">${buyWhen(e.ts)}</td>
       <td class="${e.kind==='BUY'?'g':''}"><strong>${e.kind}</strong></td>
       <td title="${e.mint||''}"><strong>${ticker}</strong></td>
+      <td data-x="${copySrc?escapeHtml(e.user||''):'-'}">${callUser}</td>
       <td>${solIn}</td>
       <td>${solOut}</td>
       <td>${fmtPx(e.px)}</td>
@@ -1643,6 +1789,7 @@ function downloadExcel(tableId, sheetName, filename){
   const head=[...((root&&root.querySelector('thead'))?root.querySelectorAll('thead tr'):[])];
   const data=[...(table.querySelectorAll('tr'))];
   const rows=[...head, ...data].map(tr=>[...tr.children].map(td=>{
+    if(td.dataset && td.dataset.x!=null) return td.dataset.x;   // a cell that exports its own text
     const a=td.querySelector('a');
     return ((a&&a.href)?a.href:td.textContent||'').replace(/\s+/g,' ').trim();
   })).filter(r=>r.some(c=>c && c!=='No trades yet'));
@@ -1822,14 +1969,15 @@ function fillConfig(c){
   map.forEach(([k,id])=>{
     if(k==='filter_mode') return;
     const el=document.getElementById(id);
-    if(el && cfg[k]!=null) el.value=cfg[k];
+    // A box you are typing in, or changed and not yet applied, is not overwritten by a config push.
+    if(el && cfg[k]!=null && document.activeElement!==el && !el.dataset.dirty) el.value=cfg[k];
   });
   const tps=cfg.tp_levels||[];
   const fr=cfg.tp_fractions||[];
-  if(document.getElementById('cfg_tp1') && tps.length) document.getElementById('cfg_tp1').value=tps[0];
+  if(document.getElementById('cfg_tp1') && tps.length) document.getElementById('cfg_tp1').value=cfg.hold_only?'':tps[0];
   if(document.getElementById('cfg_tp2')) document.getElementById('cfg_tp2').value=tps.length>1?tps[1]:'';
   if(document.getElementById('cfg_tp3')) document.getElementById('cfg_tp3').value=tps.length>2?tps[2]:'';
-  if(document.getElementById('cfg_tp1_frac') && fr.length) document.getElementById('cfg_tp1_frac').value=fr[0];
+  if(document.getElementById('cfg_tp1_frac') && fr.length) document.getElementById('cfg_tp1_frac').value=cfg.hold_only?'':fr[0];
   if(document.getElementById('cfg_tp2_frac')) document.getElementById('cfg_tp2_frac').value=fr.length>1?fr[1]:'';
   if(document.getElementById('cfg_tp3_frac')) document.getElementById('cfg_tp3_frac').value=fr.length>2?fr[2]:'';
   const armEl=document.getElementById('cfg_fallback_arm');
@@ -1931,6 +2079,7 @@ function fmtSolEq(usd){
   return '<div class="px-sol">'+t+' SOL</div>';
 }
 function paintLiveTrades(open, nextPct){
+  window._liveNextPct=nextPct;
   const body=document.getElementById('liveTradesBody');
   const meta=document.getElementById('liveTradesMeta');
   if(!body) return;
@@ -1961,7 +2110,7 @@ function paintLiveTrades(open, nextPct){
     const lowN=p.low_pct==null||p.low_pct===''?null:Number(p.low_pct);
     const low=(lowN==null||!isFinite(lowN))?'…':((lowN>=0?'+':'')+lowN.toFixed(2)+'%');
     const pnl=p.priced && p.pnl_sol!=null?Number(p.pnl_sol):null;
-    const callout=p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy';
+    const callout=p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy'||p.strategy==='mayhem'||p.source==='mayhem';
     const holdState = String(p.user_holds||'');
     const userHolds = !callout
       ? '—'
@@ -1980,14 +2129,17 @@ function paintLiveTrades(open, nextPct){
     const tps=p.tp_levels||[];
     const hit=p.tp_hit||[];
     const next=tps.find(x=>!hit.some(h=>Math.abs(h-x)<1e-9));
-    const tp=next==null?'all hit':('+'+(Number(next)*100).toFixed(0)+'%'+(callout?' · sell 100%':''));
+    const holdMode=!!(callout&&cfg&&cfg.hold_only);
+    const tp=holdMode?'Hold · off':(next==null?'all hit':('+'+(Number(next)*100).toFixed(0)+'%'+(callout?' · sell 100%':'')));
     const fees=Number(p.fees_sol||0);
     const paid=Number(p.entry_sol||0);
     const src=p.strategy||p.source||'—';
-    const ageRaw=String((cfg&&cfg.callout_sell_age)||'0').trim();
+    const ageRaw=String((cfg&&cfg.callout_sell_age)||'1h').trim();
     const ageOff=!ageRaw||ageRaw==='0'||ageRaw.toLowerCase()==='off';
-    const ageBit=ageOff?'Age off.':'Age sell '+ageRaw+'.';
-    const stop=callout
+    const ageBit=ageOff?'AgeEnded off.':'AgeEnded '+ageRaw+': sells in full at that age.';
+    const stop=holdMode
+      ? 'Hold mode (First bank empty or 0): no take-profit, Fast Pace, stop, AgeEnded or trail. This trade sells only when the caller sells or you press Sell. New trades open while Max concurrency has a free slot.'
+      : callout
       ? ((dropoff?'Dropoff on: caller sell closes this trade in full. ':'Dropoff off: under +1% the trade stays after the caller sells. ')+ageBit+' No hard stop. A null 5m does not sell. A 5m of 0 or negative does not. A failed read does not. Next new trade at '+nxt+'% on a different coin. This one sells at the first take-profit.')
       : (predict
           ? (p.entry_m5_pct==null?'Hard stop waits for the 5m at open.':'Hard stop when Pump 5m reaches '+(-Math.abs(Number(p.entry_m5_pct))).toFixed(2)+'%.')
@@ -2028,7 +2180,7 @@ function paintLiveTrades(open, nextPct){
         ${cell('PnL', pnl==null?'…':'<span class="'+tone+'">'+((pnl>=0?'+':'')+pnl.toFixed(4))+' SOL</span>', 'pnl')}
         ${cell('Hold', fmtHold(p.hold_s), 'hold')}
         ${cell('Priority fee', fees.toFixed(5)+' SOL')}
-        ${cell('Next trade', callout?(nxt+'%'):'—')}
+        ${cell('Next trade', holdMode?'free slot':(callout?(nxt+'%'):'—'))}
         ${cell('Take profit', tp)}
         ${cell('userHolds', userHolds)}
         ${(callout && holdState==='out')?cell('Drop recovery', '<span class="g">'+dropTxt+'</span>'):''}
@@ -2079,7 +2231,7 @@ function patchLiveCard(body, p){
   const ath=p.peak_pct==null?'…':((Number(p.peak_pct)>=0?'+':'')+Number(p.peak_pct).toFixed(2)+'%');
   const lowN=p.low_pct==null||p.low_pct===''?null:Number(p.low_pct);
   const low=(lowN==null||!isFinite(lowN))?'…':((lowN>=0?'+':'')+lowN.toFixed(2)+'%');
-  const callout=p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy';
+  const callout=p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy'||p.strategy==='mayhem'||p.source==='mayhem';
   const usdTone=book.usdN==null?'':(book.usdN>=0?'g':'r');
   const usdSub=(callout || book.usdN!=null)?`<div class="sub ${usdTone}">USD ${book.usd}</div>`:'';
   const sinceCell='<span class="'+(book.solCellN==null?'':(book.solCellN>=0?'g':'r'))+'">SOL '+book.solCell+'</span>'+((callout || book.usdN!=null)?('<span class="'+usdTone+'" style="display:block;font-size:12px;margin-top:3px">USD '+book.usd+'</span>'):'');
@@ -2169,14 +2321,14 @@ function renderPos(snap){
     : null;
   const mineTxt = mine==null ? '…' : ((mine>=0?'+':'')+mine.toFixed(2)+'%');
   const predictOpen = p.strategy==='predict' || p.source==='predict' || p.quick_entry;
-  const isCopy = p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy';
+  const isCopy = p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy'||p.strategy==='mayhem'||p.source==='mayhem';
   const calloutOpen = isCopy;
   const nextLvl = Number.isFinite(Number(snap.callout_next_pct))?Number(snap.callout_next_pct):(Number.isFinite(Number(cfg.callout_next_pct))?Number(cfg.callout_next_pct):-25);
   const fixedStop = p.entry_m5_pct==null ? null : -Math.abs(Number(p.entry_m5_pct));
-  const ageRaw=String((cfg&&cfg.callout_sell_age)||'0').trim();
+  const ageRaw=String((cfg&&cfg.callout_sell_age)||'1h').trim();
   const ageOff=!ageRaw||ageRaw==='0'||ageRaw.toLowerCase()==='off';
   const hardLine = calloutOpen
-    ? `${ageOff?'Age off.':'Age sell '+ageRaw+'.'} No hard stop. A null 5m does not sell. 0 and negative do not. Next trade at ${nextLvl}% on a different coin.`
+    ? `${ageOff?'AgeEnded off.':'AgeEnded '+ageRaw+': sells in full at that age.'} No hard stop. A null 5m does not sell. 0 and negative do not. Next trade at ${nextLvl}% on a different coin.`
     : predictOpen
     ? (fixedStop==null
         ? 'Hard stop: fixed from the 5m at open · not in yet'
@@ -2231,7 +2383,7 @@ function renderPos(snap){
         ${row('Since buy', since)}
         ${row('Bought at', bought)}
         ${row('5m now', m5)}
-        ${row('Hard stop', (p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy')
+        ${row('Hard stop', (p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy'||p.strategy==='mayhem'||p.source==='mayhem')
           ? ('No hard stop · next trade at '+nextLvl+'%')
           : ((p.strategy==='predict'||p.source==='predict'||p.quick_entry)
           ? (p.entry_m5_pct==null ? 'Fixed from the 5m at open · not in yet' : 'Sells when Pump 5m reaches '+(-Math.abs(Number(p.entry_m5_pct))).toFixed(2)+'% · fixed at open')
@@ -2269,7 +2421,7 @@ function renderPos(snap){
     const sl=p.stop_pct==null?'—':`${(Number(p.stop_pct)*100).toFixed(0)}%`;
     const hard=p.hard_stop_pct==null?'—':`${(Number(p.hard_stop_pct)*100).toFixed(0)}%`;
     const predictOpen = p.strategy==='predict' || p.source==='predict' || p.quick_entry;
-    const calloutOpen = p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy';
+    const calloutOpen = p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy'||p.strategy==='mayhem'||p.source==='mayhem';
     const hardStopTxt = calloutOpen
       ? `No hard stop · next new trade at ${nextLvl}%`
       : predictOpen
@@ -2595,8 +2747,20 @@ function patchCalloutRow(tr, c, now){
     }
     if(cell.dataset.v!==html){ cell.dataset.v=html; cell.className=cls; cell.textContent=html; }
   };
-  tape('m5', c.m5_null?'null':c.m5);
+  const held=calloutHeldPnl(c);
+  if(held){
+    const cell=tr.querySelector('[data-k="m5"]');
+    if(cell && cell.dataset.v!==held.txt){ cell.dataset.v=held.txt; cell.className=held.cls; cell.textContent=held.txt; cell.title='Bot PnL since buy (Live Trade Details)'; }
+  }else{
+    tape('m5', c.m5_null?'null':c.m5);
+  }
   tape('h1', c.h1);
+}
+function calloutHeldPnl(c){
+  // HOLDING with a bot trade: the 5m cell shows the bot's PnL % since buy (Live Trade Details).
+  const p=Number(c&&c.botPct);
+  if(!c||c.state!=='HOLDING'||c.botPct==null||c.botPct===''||!isFinite(p)) return null;
+  return {txt:'PnL '+(p>=0?'+':'')+p.toFixed(2)+'%', cls:p<0?'v r':p>0?'v g':''};
 }
 function paintCallouts(rows, err){
   if(!err) lastCalloutRows=Array.isArray(rows)?rows:[];
@@ -2605,19 +2769,11 @@ function paintCallouts(rows, err){
   const now=Date.now()/1000;
   if(n) n.textContent=(err?err+' · ':'')+(rows.length||0)+' wallets · live';
   if(!body) return;
-  const stamp=rows.map(c=>[c.walletAddress,c.coinMint,c.call,c.state].join(':')).join('|');
-  if(!err && body.dataset.stamp===stamp && body.querySelector('tr[data-wallet]')){
-    rows.forEach(c=>{
-      const tr=body.querySelector('tr[data-wallet="'+CSS.escape(c.walletAddress||'')+'"]');
-      if(tr) patchCalloutRow(tr, c, now);
-    });
-    return;
-  }
-  body.dataset.stamp=stamp;
+  if(!rows.length && err && body.querySelector('tr[data-wallet]')) return;   // a failed read keeps the table
   const scroller=body.closest('.scroll');
   const top=scroller?scroller.scrollTop:0;
   if(!rows.length){
-    body.innerHTML='<tr><td colspan="16" class="muted">'+(err||'Loading the latest open for each wallet')+'</td></tr>';
+    body.innerHTML='<tr><td colspan="17" class="muted">'+(err||'Loading the latest open for each wallet')+'</td></tr>';
     if(scroller) scroller.scrollTop=top;
     return;
   }
@@ -2625,7 +2781,7 @@ function paintCallouts(rows, err){
   const sol=v=>calloutHas(v)?calloutSol(v).replace(/^\+/,'') :'—';
   const signed=v=>calloutHas(v)?calloutMoney(v):'—';
   const pct=v=>calloutHas(v)?calloutPct(v):'—';
-  body.innerHTML=rows.map(c=>{
+  const build=c=>{
     const mint=c.coinMint||'';
     const short=mint?mint.slice(0,4)+'…'+mint.slice(-4):'—';
     const wallet=c.walletAddress||'';
@@ -2639,8 +2795,8 @@ function paintCallouts(rows, err){
     const pump='https://pump.fun/coin/'+mint;
     const web='https://solscan.io/token/'+mint;
     const dex='https://dexscreener.com/solana/'+mint;
-    const name=(c.coinName||'—').toString();
-    const user=(c.userName||'—').toString();
+    const name=escapeHtml((c.coinName||'—').toString());
+    const user=escapeHtml((c.userName||'—').toString());
     const call=c.call||'WAIT';
     const callCls=call==='OPEN'?'v g':call==='CLOSE'?'v r':'muted';
     const whyCall=(c.callReason||'').toString().replace(/"/g,'');
@@ -2654,17 +2810,17 @@ function paintCallouts(rows, err){
       const cls=n<0?'v r':n>0?'v g':'';
       return `<td data-k="${key}" class="${cls}">${calloutPct(n)}</td>`;
     };
-    return `<tr data-wallet="${wallet}" data-unreal="${calloutHas(c.unrealizedUsd)?c.unrealizedUsd:''}"${pin}>
+    return `<tr data-wallet="${wallet}" data-key="${wallet}|${mint}" data-unreal="${calloutHas(c.unrealizedUsd)?c.unrealizedUsd:''}"${pin}>
       <td title="${user}">${user}</td>
       <td title="${wallet}"><a href="https://pump.fun/profile/${wallet}" target="_blank" rel="noopener">${wshort}</a></td>
       <td title="${mint}"><a href="${web}" target="_blank" rel="noopener">${short}</a></td>
       <td title="${name}">${name}</td>
-      <td><strong>${c.symbol||'—'}</strong></td>
+      <td><strong>${escapeHtml(c.symbol||'—')}</strong></td>
       <td data-k="px" title="${c.tokenPrice==null?'No price yet':c.tokenPrice}">${calloutHas(c.tokenPrice)?calloutPx(c.tokenPrice):'—'}</td>
       <td title="Cost basis"><div>${usd(c.costBasisUsd)}</div><div class="sub">${sol(c.costBasisSol)}</div></td>
       <td data-k="unreal" class="${unrealTone}" title="Unrealized">${calloutUnrealHtml(c)}</td>
       <td data-k="real" class="${realTone}" title="Realized PnL">${calloutRealHtml(c)}</td>
-      ${tape('m5', c.m5_null?'null':c.m5)}
+      ${calloutHeldPnl(c)?`<td data-k="m5" class="${calloutHeldPnl(c).cls}" title="Bot PnL since buy (Live Trade Details)">${calloutHeldPnl(c).txt}</td>`:tape('m5', c.m5_null?'null':c.m5)}
       ${tape('h1', c.h1)}
       <td class="${callCls}" title="${whyCall}"><strong>${call}</strong><div class="sub">${whyCall}</div></td>
       <td class="${stCls}"><strong>${state||'—'}</strong></td>
@@ -2674,8 +2830,32 @@ function paintCallouts(rows, err){
         <div class="keep"><a href="${pswap}" target="_blank" rel="noopener">5m/1h</a> · <a href="${pump}" target="_blank" rel="noopener">pump</a></div>
         <div class="sub keep"><a href="${web}" target="_blank" rel="noopener">web</a> · <a href="${dex}" target="_blank" rel="noopener">dex</a></div>
       </td>
+      <td>${mint?`<button type="button" class="lite co-act" data-act="buy" data-mint="${mint}" data-symbol="${String(c.symbol||'').replace(/"/g,'')}" data-name="${name.replace(/"/g,'')}" data-user="${user.replace(/"/g,'')}" data-wallet="${wallet}">Buy</button> <button type="button" class="lite co-act" data-act="sell" data-mint="${mint}" data-symbol="${String(c.symbol||'').replace(/"/g,'')}">Sell</button>`:'—'}</td>
     </tr>`;
-  }).join('');
+  };
+  const old={};
+  body.querySelectorAll('tr').forEach(tr=>{
+    if(tr.dataset.key) old[tr.dataset.key]=tr; else tr.remove();   // the loading line
+  });
+  const tmp=document.createElement('tbody');
+  rows.forEach((c,i)=>{
+    const key=(c.walletAddress||'')+'|'+(c.coinMint||'');
+    const sig=[c.call,c.state,c.callReason,c.totalValueUsd,c.costBasisUsd,c.costBasisSol,c.symbol,c.coinName,c.userName].join('~');
+    let tr=old[key];
+    delete old[key];
+    if(tr && tr.dataset.sig===sig){
+      patchCalloutRow(tr, c, now);
+    }else{
+      tmp.innerHTML=build(c);
+      const fresh=tmp.firstElementChild;
+      fresh.dataset.sig=sig;
+      if(tr) tr.replaceWith(fresh);
+      tr=fresh;
+    }
+    const at=body.children[i];
+    if(at!==tr) body.insertBefore(tr, at||null);
+  });
+  Object.values(old).forEach(tr=>tr.remove());
   if(scroller) scroller.scrollTop=top;
 }
 let _calloutFlight=null;
@@ -2688,8 +2868,9 @@ async function loadCallouts(){
     const r=await _calloutFlight;
     const data=await r.json();
     paintCallouts(data.rows||[], data.error||'');
+    paintOpenHoldsBlocked(data.blocked||[], 'calloutBlocked');
   }catch(e){
-    paintCallouts([], 'feed failed');
+    paintCallouts(lastCalloutRows, 'feed failed');   // keep the rows on screen; no blank flash
   }finally{
     _calloutFlight=null;
   }
@@ -2702,6 +2883,16 @@ function heldM5(mint, raw){
     return _ohM5[mint];
   }
   return mint in _ohM5 ? _ohM5[mint] : null;
+}
+function ohM5OrPnl(row, m5n){
+  // Held by the bot: its PnL % since buy (the Live Trade Details "Since buy" figure).
+  // Missed, waiting, or not bought: the 5m %.
+  const p=Number(row&&row.botPct);
+  if(row && row.botStatus==='HOLDING' && row.botPct!=null && row.botPct!=='' && isFinite(p)){
+    return {n:p, txt:'PnL '+(p>=0?'+':'')+p.toFixed(2)+'%', cls:p<0?'v r':'v g', title:'Bot PnL since buy (Live Trade Details)'};
+  }
+  const ok=m5n!=null&&isFinite(m5n);
+  return {n:ok?m5n:null, txt:ok?((m5n>=0?'+':'')+m5n.toFixed(2)+'%'):'—', cls:ok?(m5n<0?'v r':'v g'):'muted', title:'5m %'};
 }
 function openHoldTable(g, mode){
   const num=v=>{
@@ -2754,16 +2945,15 @@ function openHoldTable(g, mode){
     const pump='https://pump.fun/coin/'+mint;
     const web='https://solscan.io/token/'+mint;
     const dex='https://dexscreener.com/solana/'+mint;
-    const m5n=heldM5(mint, row.m5);
-    const m5txt=m5n==null||!isFinite(m5n)?'—':((m5n>=0?'+':'')+m5n.toFixed(2)+'%');
+    const m5c=ohM5OrPnl(row, heldM5(mint, row.m5));
     const holding=row.botStatus==='HOLDING';
     const buying=row.botStatus==='BUYING';
     const pin=holding?' class="oh-hold"':(buying?' class="oh-buy"':'');
     const statusCls=row.botStatus==='MISSED'?'v r':(holding||buying?'v g':'muted');
     return `<tr${pin} data-oh="${String(who).replace(/"/g,'')}|${mint}">
       <td title="${mint}"><a href="https://pump.fun/coin/${mint}" target="_blank" rel="noopener">${shortMint(mint)}</a></td>
-      <td>${row.name||'—'}</td>
-      <td><strong>${row.symbol||'—'}</strong></td>
+      <td data-f="name">${row.name?escapeHtml(row.name):'—'}</td>
+      <td data-f="sym"><strong>${row.symbol?escapeHtml(row.symbol):'—'}</strong></td>
       <td data-f="price">${num(row.token_price)}</td>
       <td data-f="cost">${money(row.cost_basis_usd).replace('+','')}</td>
       <td data-f="usd" class="${tone(row.unrealized_usd)}">${money(row.unrealized_usd)}</td>
@@ -2773,7 +2963,7 @@ function openHoldTable(g, mode){
       <td class="${row.positionHold==='TRANSFER'?'muted':'v g'}" title="${row.positionHold==='TRANSFER'?'Tokens were sent to this caller, not bought. Auto-copy skips it.':''}"><strong>${row.positionHold||'OPEN'}</strong></td>
       <td class="${statusCls}" data-f="st"><strong>${row.botStatus||'—'}</strong></td>
       <td class="keep" data-f="age" data-ts="${Number(row.openedAt)||0}">${ageOf(row.openedAt)}</td>
-      <td data-f="m5" class="${m5n==null?'muted':(m5n<0?'v r':'v g')}">${m5txt}</td>
+      <td data-f="m5" class="${m5c.cls}" title="${m5c.title}">${m5c.txt}</td>
       <td>
         <div class="keep"><a href="${pswap}" target="_blank" rel="noopener">5m/1h</a> · <a href="${pump}" target="_blank" rel="noopener">pump</a></div>
         <div class="sub keep"><a href="${web}" target="_blank" rel="noopener">web</a> · <a href="${dex}" target="_blank" rel="noopener">dex</a></div>
@@ -2782,13 +2972,14 @@ function openHoldTable(g, mode){
     </tr>`;
   }).join('');
   const errText=(g.error==='HTTPStatusError'||String(g.error||'').indexOf('HTTP ')===0)?'checking':(g.error||'');
-  const body=rows||`<tr><td colspan="15" class="muted">${errText||(mode==='all'?'No coin older than 1 hour.':'No coin opened in the last hour. Watching live — a new open shows here the moment it happens.')}</td></tr>`;
+  const body=rows||`<tr><td colspan="15" class="muted">${errText||(mode==='all'?'No coin 15 minutes to 1 hour old.':'No coin opened in the last 15 minutes. Watching live — a new open shows here the moment it happens.')}</td></tr>`;
   const walletUsd=(g.totalValueUsd==null||g.totalValueUsd==='')?'':' - $'+Number(g.totalValueUsd).toLocaleString(undefined,{maximumFractionDigits:0});
-  const title=profile?`<a href="${profile}" target="_blank" rel="noopener">${who}</a><span data-f="wusd">${walletUsd}</span>`:`${who}<span data-f="wusd">${walletUsd}</span>`;
+  const label=g.label||who;
+  const title=mode==='hold'?`${label}`:(profile?`<a href="${profile}" target="_blank" rel="noopener">${label}</a><span data-f="wusd">${walletUsd}</span>`:`${label}<span data-f="wusd">${walletUsd}</span>`);
   const whoEsc=String(who).replace(/"/g,'');
   const held=ordered.some(row=>row.botStatus==='HOLDING'||row.botStatus==='BUYING');
   const pinMark=held?'<span class="oh-pin">HOLDING</span>':'';
-  const exist=mode?`<div class="oh-exist"><a href="#" class="oh-exist-link" data-user="${whoEsc}">${mode==='all'?'Hide existing':'Open existing'}</a> · <a href="#" class="oh-drop" data-user="${whoEsc}">Clear</a></div>`:'';
+  const exist=(mode&&mode!=='hold')?`<div class="oh-exist"><a href="#" class="oh-exist-link" data-user="${whoEsc}">${mode==='all'?'Hide existing':'Open existing'}</a> · <a href="#" class="oh-drop" data-user="${whoEsc}">Clear</a></div>`:'';
   return `<div class="oh-block${held?' pinned':''}">
       <div class="oh-user${held?' pinned':''}">${title}${pinMark}</div>
       ${exist}
@@ -2802,7 +2993,7 @@ function openHoldTable(g, mode){
         <thead><tr>
           <th>coinMint</th><th>name</th><th>symbol</th><th>token_price</th>
           <th>cost_basis_usd</th><th>unrealized_usd</th><th>percentage_usd</th><th>percentage</th>
-          <th>realized_pnl_usd</th><th>PositionHold</th><th>Status</th><th>AgeOpened</th><th>5m %</th><th>Links</th><th>Trade</th>
+          <th>realized_pnl_usd</th><th>PositionHold</th><th>Status</th><th>AgeOpened</th><th title="5m % — or PnL % (as Live Trade Details) once the bot holds the coin">5m % / PnL</th><th>Links</th><th>Trade</th>
         </tr></thead>
         <tbody>${body}</tbody>
       </table>
@@ -2968,8 +3159,8 @@ function patchOpenHoldCell(tr, field, text, cls, prev, next, pulse){
   if(isFinite(prev) && prev!==next) ohPulse(cell, next>prev?1:-1);
   else if(pulse) ohPulse(cell, 0);
 }
-function patchOpenHoldsLive(groups){
-  const box=document.getElementById('openHoldsScroll');
+function patchOpenHoldsLive(groups, boxId){
+  const box=document.getElementById(boxId||'openHoldsScroll');
   if(!box) return false;
   const num=v=>{
     const n=Number(v);
@@ -3042,6 +3233,12 @@ function patchOpenHoldsLive(groups){
         }
       }
       const numOr=v=>{ const n=Number(v); return v==null||v===''||!isFinite(n)?NaN:n; };
+      if(row.name||row.symbol){
+        // A coin first seen on the socket gets its name a moment later: fill it in place.
+        const nm=ohCell(tr,'name'), sy=ohCell(tr,'sym');
+        if(nm && row.name && nm.textContent!==row.name) nm.textContent=row.name;
+        if(sy && row.symbol && sy.textContent!==row.symbol) sy.innerHTML='<strong></strong>', sy.firstChild.textContent=row.symbol;
+      }
       patchOpenHoldCell(tr,'cost',money(row.cost_basis_usd).replace('+',''),null,NaN,NaN,false);
       patchOpenHoldCell(tr,'usd',money(row.unrealized_usd),tone(row.unrealized_usd),numOr(tr.dataset.usd),numOr(row.unrealized_usd),pulse);
       patchOpenHoldCell(tr,'pctu',pctn(row.percentage_usd),tone(row.percentage_usd),numOr(tr.dataset.pctu),numOr(row.percentage_usd),pulse);
@@ -3065,10 +3262,9 @@ function patchOpenHoldsLive(groups){
         const text=ageOf(row.openedAt);
         if(age.textContent!==text) age.textContent=text;
       }
-      const m5n=heldM5(mint, row.m5);
-      const m5txt=m5n==null||!isFinite(m5n)?'—':((m5n>=0?'+':'')+m5n.toFixed(2)+'%');
-      patchOpenHoldCell(tr,'m5',m5txt,m5n==null?'muted':(m5n<0?'v r':'v g'),Number(tr.dataset.m5),Number(m5n));
-      tr.dataset.m5=m5n==null?'':String(m5n);
+      const m5c=ohM5OrPnl(row, heldM5(mint, row.m5));
+      patchOpenHoldCell(tr,'m5',m5c.txt,m5c.cls,Number(tr.dataset.m5),Number(m5c.n));
+      tr.dataset.m5=m5c.n==null?'':String(m5c.n);
     });
     const blocks=[...box.querySelectorAll('.oh-block')];
     blocks.forEach(block=>{
@@ -3096,7 +3292,7 @@ function patchOpenHoldsLive(groups){
   });
   return patched>0;
 }
-function paintOpenHolds(groups, err, picked, callers, watch){
+function paintOpenHolds(groups, err, picked, callers, watch, copyHolding){
   const box=document.getElementById('openHoldsScroll');
   const meta=document.getElementById('openHoldsMeta');
   const picks=Array.isArray(watch&&watch.picks)?watch.picks:[];
@@ -3116,7 +3312,7 @@ function paintOpenHolds(groups, err, picked, callers, watch){
   });
   openHoldsCache=shown;
   const names=picks.map(item=>item&&item.user).filter(Boolean);
-  if(meta) meta.textContent=err?err:((shown.length?shown.length+' holder'+(shown.length===1?'':'s'):'no pinned holder')+(names.length?' · '+names.join(', '):'')+' · live');
+  if(meta) meta.textContent=err?err:((names.length?names.join(', '):'no caller picked')+' · live');
   const pickedList=Array.isArray(picked)?picked:(picked&&picked.userName?[picked]:[]);
   const byPick={};
   pickedList.forEach(row=>{ if(row&&row.userName) byPick[String(row.userName).toLowerCase()]=row; });
@@ -3127,7 +3323,16 @@ function paintOpenHolds(groups, err, picked, callers, watch){
     if(!name) return;
     const row=byPick[name.toLowerCase()]||{userName:name, rows:[], error:''};
     row._mode=item.all?'all':'after';
+    // Coins this bot bought from this caller: their own table until the trade closes.
+    if(Array.isArray(row.holding)&&row.holding.length){
+      tables.push({userName:row.userName||name, wallet:row.wallet, label:(row.userName||name)+' · Holding', rows:row.holding, _mode:'hold', ok:true, error:''});
+    }
     tables.push(row);
+  });
+  // OpenCopy trades from a caller who is not picked: their Holding table only.
+  (Array.isArray(copyHolding)?copyHolding:[]).forEach(row=>{
+    if(!row||!Array.isArray(row.holding)||!row.holding.length) return;
+    tables.push({userName:row.userName, wallet:row.wallet, label:row.userName+' · Holding', rows:row.holding, _mode:'hold', ok:true, error:''});
   });
   const keys=tables.map(g=>{
     const who=g.userName||'caller';
@@ -3140,22 +3345,49 @@ function paintOpenHolds(groups, err, picked, callers, watch){
     patchOpenHoldsLive(tables);
     return;
   }
+  if(box.dataset.hold==='1' && box.dataset.keys){
+    return;   // mouse is down on the tables: rebuilding now would eat the click
+  }
   let html=tables.map(g=>openHoldTable(g, g._mode)).join('');
   if(!html){
-    html='<div class="hint">'+(err||'No pinned Callout holder. Pick a caller above.')+'</div>';
+    html='<div class="hint">'+(err||'No caller picked. Search a caller above.')+'</div>';
   }
   box.dataset.keys=keys;
   box.innerHTML=html;
 }
+function paintOpenHoldsBlocked(list, boxId){
+  // Auto-open attempts the rule held back. Each stays until its auto window ends; a coin the bot
+  // opens leaves the list at once (the server drops it). CallOuts uses the same box.
+  const box=document.getElementById(boxId||'openHoldsBlocked');
+  if(!box) return;
+  const items=Array.isArray(list)?list:[];
+  if(!items.length){
+    if(!box.hidden){ box.hidden=true; box.innerHTML=''; box.dataset.sig=''; }
+    return;
+  }
+  const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+  const money=v=>{const n=Number(v); if(v==null||v===''||!isFinite(n)) return '—'; return (n<0?'-':'+')+'$'+Math.abs(n).toFixed(2);};
+  const pct=v=>{const n=Number(v); if(v==null||v===''||!isFinite(n)) return '—'; return (n>=0?'+':'')+n.toFixed(2)+'%';};
+  const left=s=>{const n=Math.max(0,Math.round(Number(s)||0)); return n>=60?Math.floor(n/60)+'m '+(n%60)+'s':n+'s';};
+  const html='<h3>Auto-trade held back ('+items.length+')</h3><ul>'+items.map(it=>
+    '<li><span class="sym">'+esc(it.symbol)+'</span>'+
+    '<span class="muted">'+esc(it.user)+'</span>'+
+    '<span class="why">'+esc(it.why)+'</span>'+
+    '<span>unrealized '+money(it.unrealized_usd)+' · '+pct(it.percentage)+'</span>'+
+    (it.left!=null?'<span class="left">auto window '+left(it.left)+'</span>':(it.kind==='pending'?'<span class="left">next trade pending</span>':''))+'</li>').join('')+'</ul>';
+  if(box.dataset.sig!==html){ box.dataset.sig=html; box.innerHTML=html; }
+  box.hidden=false;
+}
 function paintOpenHoldsFrom(data, callRows){
-  const fresh=Array.isArray(callRows)&&callRows.length?callRows:lastCalloutRows;
-  const groups=mergePinnedCallouts((data&&data.groups)||[], fresh);
+  paintOpenHoldsBlocked(data&&data.blocked);
+  // OpenHolds shows only its own callers (picked + OpenCopy holds). Callout pins stay on CallOuts.
   paintOpenHolds(
-    groups,
+    [],
     (data&&data.error)||'',
     (data&&data.picked)||[],
     (data&&data.callers)||[],
-    (data&&data.watch)||{picks:[]}
+    (data&&data.watch)||{picks:[]},
+    (data&&data.copyHolding)||[]
   );
 }
 let _openHoldsCtrl=null;
@@ -3192,6 +3424,7 @@ async function loadOpenHolds(action){
       lastOpenHolds.picked=data.picked||[];
       lastOpenHolds.watch=data.watch||{picks:[]};
       lastOpenHolds.error=data.error||'';
+      lastOpenHolds.blocked=Array.isArray(data.blocked)?data.blocked:[];
     }
     paintOpenHoldsFrom(lastOpenHolds, lastCalloutRows);
     if(dirP){
@@ -3308,18 +3541,21 @@ if(openHoldsScroll){
     fetch('/api/openhold-order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
       .then(r=>r.json())
       .then(data=>{
+        const isMayhem=String(body.user||'').toLowerCase()==='mayhem_mode';
         if(data.status==='MISSED'){
           if(row) row.className='';
           const cell=row&&row.querySelector('[data-f="st"]');
           if(cell){ cell.className='v r'; cell.innerHTML='<strong>MISSED</strong>'; }
+          if(isMayhem){ mayhemLocalNote('error',(body.symbol||'Coin')+' — not bought: '+(data.error||'missed')); return; }
           toast({level:'warn',title:'Not bought',message:data.error||'Missed'});
           return;
         }
+        if(isMayhem){ mayhemLocalNote(data.ok?'ok':'warn',(body.symbol||'Coin')+(data.ok?' — buy sent.':' — '+(data.error||'No free slot'))); return; }
         toast(data.ok
           ? {level:'ok',title:'Buy',message:(body.symbol||'Coin')+' opening.'}
-          : {level:'warn',title:'OpenHolds',message:data.error||'No free slot'});
+          : {level:'warn',title:(String(body.user||'').toLowerCase()==='mayhem_mode'?'Mayhem':'OpenHolds'),message:data.error||'No free slot'});
       })
-      .catch(()=>toast({level:'warn',title:'OpenHolds',message:'Request failed'}));
+      .catch(()=>{ if(String(body.user||'').toLowerCase()==='mayhem_mode') mayhemLocalNote('error',(body.symbol||'Coin')+' — request failed'); else toast({level:'warn',title:'OpenHolds',message:'Request failed'}); });
     return;
   }
   const drop=e.target.closest&&e.target.closest('.oh-drop');
@@ -3331,9 +3567,124 @@ if(openHoldsScroll){
   const link=e.target.closest&&e.target.closest('.oh-exist-link');
   if(!link) return;
   e.preventDefault();
-  loadOpenHolds({all:String(link.textContent||'').trim()==='Open existing', user:link.getAttribute('data-user')||''});
+  const showAll=String(link.textContent||'').trim()==='Open existing';
+  const linkUser=link.getAttribute('data-user')||'';
+  const w=lastOpenHolds.watch||{};
+  (w.picks||[]).forEach(p=>{ if(String(p.user||'').toLowerCase()===linkUser.toLowerCase()) p.all=showAll; });
+  openHoldsScroll.dataset.hold='';
+  paintOpenHoldsFrom(lastOpenHolds, lastCalloutRows);
+  loadOpenHolds({all:showAll, user:linkUser});
   };
 }
+// ---- MayhemMode: the one caller Mayhem_Mode, OpenHolds tables and buttons ----
+let _mayhemBusy=false;
+let _mayhemKeys='';
+async function loadMayhem(){
+  if(_mayhemBusy) return;
+  _mayhemBusy=true;
+  try{
+    const r=await fetch('/api/mayhem',{cache:'no-store'});
+    paintMayhem(await r.json());
+  }catch(e){
+    const el=document.getElementById('mhBook');
+    if(el){ el.textContent='READ FAILED'; el.className='mh-pill off'; }
+  }finally{ _mayhemBusy=false; }
+}
+let _mayhemTab='new';
+let _mayhemLocal=[];   // click results on this page: shown in Messages, not as toasts
+function mayhemLocalNote(level, text){
+  _mayhemLocal.unshift({ts:Date.now()/1000, level, text, n:1});
+  _mayhemLocal=_mayhemLocal.slice(0,10);
+}
+function paintMayhemNotes(list){
+  const ul=document.getElementById('mhNotes');
+  const n=document.getElementById('mhNotesN');
+  if(!ul) return;
+  const all=(Array.isArray(list)?list:[]).concat(_mayhemLocal).sort((a,b)=>(b.ts||0)-(a.ts||0)).slice(0,40);
+  const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+  const html=all.map(it=>'<li class="'+esc(it.level||'info')+'"><span class="t">'+new Date((it.ts||0)*1000).toLocaleTimeString()+'</span><span class="m">'+esc(it.text)+(Number(it.n)>1?' (×'+Number(it.n)+')':'')+'</span></li>').join('');
+  if(ul.dataset.h!==html){ ul.dataset.h=html; ul.innerHTML=html||'<li class="info"><span class="m muted">Buys, sells, paused coins and failed buys for Mayhem show here.</span></li>'; }
+  if(n) n.textContent=all.length?all.length+' recent':'none yet';
+}
+function paintMayhem(d){
+  d=d||{};
+  const box=document.getElementById('mayhemScroll');
+  if(!box) return;
+  const esc=v=>String(v==null?'':v).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+  const set=(id,v)=>{const el=document.getElementById(id); if(el&&el.textContent!==String(v)) el.textContent=v;};
+  const pill=(id,text,cls)=>{const el=document.getElementById(id); if(!el) return; el.textContent=text; el.className='mh-pill '+cls;};
+  const holding=Array.isArray(d.holding)?d.holding:[];
+  const fresh=Array.isArray(d.rows)?d.rows:[];
+  const older=Array.isArray(d.older)?d.older:[];
+  const blocked=Array.isArray(d.blocked)?d.blocked:[];
+  pill('mhSource', d.on?'SOURCE ON · auto-buy':'SOURCE OFF', d.on?'on':'off');
+  paintMayhemNotes(d.notes);
+  const age=Number(d.bookAge);
+  pill('mhBook', !d.bookOk?String(d.error||'checking').toUpperCase():(isFinite(age)&&age>3?('STALE '+Math.round(age)+'s'):'LIVE'), d.bookOk&&!(isFinite(age)&&age>3)?'':'off');
+  const tv=Number(d.totalValueUsd);
+  set('mhWallet', isFinite(tv)&&d.totalValueUsd!=null?'$'+Math.round(tv).toLocaleString():'—');
+  set('mhHoldN', holding.length); set('mhNewN', fresh.length); set('mhBlockN', blocked.length);
+  set('mhTabNew', fresh.length); set('mhTabBlock', blocked.length);
+  document.querySelectorAll('#mhTabs button').forEach(b=>b.classList.toggle('on', b.dataset.tab===_mayhemTab));
+  const who=d.userName||'Mayhem_Mode';
+  const tables=[];
+  if(holding.length) tables.push({userName:who, wallet:d.wallet, label:'Holding', rows:holding, _mode:'hold', ok:true, error:'', _sec:'Bot is holding'});
+  if(_mayhemTab==='new') tables.push({userName:who, wallet:d.wallet, label:'New', rows:fresh, _mode:'hold', ok:d.bookOk!==false,
+    error:d.bookOk===false?(d.error||'checking'):'No active coin opened in the last 3 minutes. Watching live.', _sec:'New — active coins opened in the last 3 minutes'+(Number(d.pausedHidden)>0?' ('+Number(d.pausedHidden)+' paused hidden)':'')});
+  const left=s=>{const n=Math.max(0,Math.round(Number(s)||0)); return n>=60?Math.floor(n/60)+'m '+(n%60)+'s':n+'s';};
+  const money=v=>{const n=Number(v); if(v==null||v===''||!isFinite(n)) return '—'; return (n<0?'-':'+')+'$'+Math.abs(n).toFixed(2);};
+  const pct=v=>{const n=Number(v); if(v==null||v===''||!isFinite(n)) return '—'; return (n>=0?'+':'')+n.toFixed(2)+'%';};
+  const blockHtml=_mayhemTab!=='blocked'?'':('<div class="mh-sec">Held back — the auto-open rule skipped these</div>'+(blocked.length
+    ?'<table class="mh-block"><thead><tr><th>Coin</th><th>Why skipped</th><th>Unrealized</th><th>%</th><th>Auto window left</th></tr></thead><tbody>'+
+      blocked.map(it=>'<tr><td><a href="https://pump.fun/coin/'+esc(it.mint)+'" target="_blank" rel="noopener"><b>'+esc(it.symbol||String(it.mint||'').slice(0,6))+'</b></a></td><td class="why">'+esc(it.why)+'</td><td class="num">'+money(it.unrealized_usd)+'</td><td class="num">'+pct(it.percentage)+'</td><td class="num">'+left(it.left)+'</td></tr>').join('')+'</tbody></table>'
+    :'<div class="mh-empty">Nothing held back right now.</div>'));
+  // Two sections, each redrawn only when its own coin list changes. Prices and PnL are patched in
+  // place, so a new coin in New no longer redraws (and flickers) the Holding table.
+  let secHold=document.getElementById('mhSecHold'), secTab=document.getElementById('mhSecTab');
+  if(!secHold||!secTab){
+    box.innerHTML='<div id="mhSecHold"></div><div id="mhSecTab"></div>';
+    secHold=document.getElementById('mhSecHold'); secTab=document.getElementById('mhSecTab');
+  }
+  if(box.dataset.hold==='1' && _mayhemKeys){   // mouse down: a redraw would eat the click
+    patchOpenHoldsLive(tables, 'mayhemScroll');
+    return;
+  }
+  const sig=g=>g.label+'|'+(g._sec||'')+'|'+(g.rows||[]).map(r=>(r.coinMint||'')+'|'+(r.positionHold||'')+'|'+(r.botStatus||'')).join(',')+'|'+((g.rows||[]).length?'':g.error);
+  const draw=g=>'<div class="mh-sec'+(g.label==='Holding'?' g':'')+'">'+esc(g._sec)+' · '+(g.rows||[]).length+'</div>'+
+    ((g.rows||[]).length?openHoldTable(g, g._mode):'<div class="mh-empty">'+esc(g.error)+'</div>');
+  const holdT=tables.find(g=>g.label==='Holding');
+  const tabT=tables.find(g=>g.label!=='Holding');
+  const holdKey=holdT?sig(holdT):'';
+  if(secHold.dataset.k!==holdKey){ secHold.dataset.k=holdKey; secHold.innerHTML=holdT?draw(holdT):''; }
+  const tabKey=_mayhemTab+'|'+(tabT?sig(tabT):'')+'|'+(_mayhemTab==='blocked'?blocked.map(it=>it.mint+'|'+it.why).join(','):'');
+  if(secTab.dataset.k!==tabKey){ secTab.dataset.k=tabKey; secTab.innerHTML=tabT?draw(tabT):blockHtml; }
+  else if(_mayhemTab==='blocked'){
+    // countdowns only: patch the "left" cells
+    const cells=secTab.querySelectorAll('table.mh-block tbody tr');
+    blocked.forEach((it,i)=>{ const c=cells[i]&&cells[i].lastElementChild; const t=left(it.left); if(c&&c.textContent!==t) c.textContent=t; });
+  }
+  _mayhemKeys=holdKey+'\n'+tabKey;
+  patchOpenHoldsLive(tables, 'mayhemScroll');
+}
+(function(){
+  const box=document.getElementById('mayhemScroll');
+  const tabs=document.getElementById('mhTabs');
+  if(tabs) tabs.onclick=(e)=>{
+    const b=e.target.closest&&e.target.closest('button[data-tab]');
+    if(!b) return;
+    _mayhemTab=b.dataset.tab; _mayhemKeys='';
+    const t=document.getElementById('mhSecTab'); if(t) t.dataset.k='';
+    loadMayhem();
+  };
+  if(!box) return;
+  box.addEventListener('pointerdown', ()=>{ box.dataset.hold='1'; });
+  window.addEventListener('pointerup', ()=>{ box.dataset.hold=''; });
+  box.onclick=(e)=>{
+    // Buy / Sell: same handler as OpenHolds.
+    const btn=e.target.closest&&e.target.closest('.oh-act');
+    if(btn && openHoldsScroll && openHoldsScroll.onclick) openHoldsScroll.onclick(e);
+  };
+})();
 function paintPredict(rows, err){
   const body=document.getElementById('predictBody');
   const n=document.getElementById('predictCount');
@@ -3377,7 +3728,7 @@ async function loadPredict(){
   }
 }
 function showView(name){
-  const views=['dash','ledger','history','exec','coins','decoded','callouts','openholds','livetrades','predict','settings'];
+  const views=['dash','ledger','history','exec','coins','mayhem','decoded','callouts','openholds','livetrades','predict','settings'];
   if(!views.includes(name)) name='dash';
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on', v.dataset.view===name));
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('on', b.dataset.view===name));
@@ -3385,6 +3736,11 @@ function showView(name){
   if(window._calloutTimer){ clearInterval(window._calloutTimer); window._calloutTimer=null; }
   if(window._openHoldsTimer){ clearInterval(window._openHoldsTimer); window._openHoldsTimer=null; }
   if(window._predictTimer){ clearInterval(window._predictTimer); window._predictTimer=null; }
+  if(window._mayhemTimer){ clearInterval(window._mayhemTimer); window._mayhemTimer=null; }
+  if(name==='mayhem'){
+    loadMayhem();
+    window._mayhemTimer=setInterval(loadMayhem, 250);
+  }
   if(name==='dash'){
     requestAnimationFrame(()=>{ try{ cAct.resize(); cVer.resize(); cLive.resize(); fitActionLog(); }catch(e){} });
   }
@@ -3405,6 +3761,34 @@ document.querySelectorAll('.navbtn').forEach(b=>{
   b.onclick=()=>showView(b.dataset.view);
 });
 showView((location.hash||'#dash').slice(1));
+// Only the newest positions / ledger / wallet message is drawn, once per frame. Drawing every
+// message (positions ~13/s, the full ledger every second) could take longer than they arrive:
+// they queued and the page showed an older wallet and older trades than the server had.
+const _paintNext={};
+let _paintQueued=false;
+function _paintFlush(){
+  _paintQueued=false;
+  const jobs=Object.values(_paintNext);
+  for(const k in _paintNext) delete _paintNext[k];
+  jobs.forEach(fn=>{ try{ fn(); }catch(e){ console.error(e); } });
+}
+function paintLatest(kind, fn){
+  _paintNext[kind]=fn;
+  if(_paintQueued) return;
+  _paintQueued=true;
+  if(document.hidden) setTimeout(_paintFlush, 1000);   // a background tab: once a second is plenty
+  else requestAnimationFrame(_paintFlush);
+}
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && Object.keys(_paintNext).length) _paintFlush(); });
+// Positions arrive 4 times a second. An open socket silent for 6s is stuck: reconnect, which
+// brings a full fresh snapshot.
+setInterval(()=>{
+  if(document.hidden || !_connSock || _connSock.readyState!==1) return;
+  if(Date.now()-(window._wsLastMsg||Date.now())>6000){
+    window._wsLastMsg=Date.now();
+    connect(true);
+  }
+}, 2000);
 let _connWait=null;
 let _connSock=null;
 function connect(force){
@@ -3442,6 +3826,7 @@ function connect(force){
     _connWait=setTimeout(connect, again && again.textContent==='RESTARTING'?250:800);
   };
   ws.onmessage=(msg)=>{
+    window._wsLastMsg=Date.now();
     let d; try{d=JSON.parse(msg.data)}catch{return}
     if(d.type==='snapshot'){
       if(d.actions) d.actions.forEach(renderAction);
@@ -3451,10 +3836,10 @@ function connect(force){
       applyStats(d.stats);fillConfig(d.config);renderPos(d.positions);(d.history||[]).forEach(e=>{if(e.type==='decoded')addDecoded(e)})}
     else if(d.type==='decoded') addDecoded(d);
     else if(d.type==='stats'||d.type==='heartbeat'){if(d.stats)applyStats(d.stats); if(d.slot!=null)document.getElementById('slot').textContent=d.slot}
-    else if(d.type==='wallet'){renderWallet(d.wallet)}
+    else if(d.type==='wallet'){ paintLatest('wallet', ()=>renderWallet(d.wallet)); }
     else if(d.type==='ledger'){
       const entries=d.entries||[];
-      if(entries.length || !(ledgerCache.entries||[]).length || (d.summary||{}).cleared) renderLedger(entries, d.summary||{});
+      if(entries.length || !(ledgerCache.entries||[]).length || (d.summary||{}).cleared) paintLatest('ledger', ()=>renderLedger(entries, d.summary||{}));
     }
     else if(d.type==='actions_cleared'){
       const ab=document.getElementById('actionBody'); if(ab) ab.innerHTML='';
@@ -3462,7 +3847,7 @@ function connect(force){
     }
     else if(d.type==='action'){renderAction(d.entry)}
     else if(d.type==='exec_history'){renderExecHistory(d.entries||[])}
-    else if(d.type==='positions'){ renderPos(d.snapshot); if(d.pnl) paintPnl(d.pnl); }
+    else if(d.type==='positions'){ paintLatest('positions', ()=>{ renderPos(d.snapshot); if(d.pnl) paintPnl(d.pnl); }); }
     else if(d.type==='config') fillConfig(d.config);
     else if(d.type==='alert') toast(d);
     else if(d.type==='trade') toast({level:d.pnl_sol>=0?'buy':'skip',title:`Trade ${d.pnl_sol>=0?'+':''}${(d.pnl_sol||0).toFixed(4)} SOL`,message:`${(d.mint||'').slice(0,8)}… ${d.reason||''}`});
@@ -3490,6 +3875,12 @@ function paintSettings(c){
   if(age && document.activeElement!==age && !age.dataset.dirty && c.callout_sell_age!=null){
     age.value=String(c.callout_sell_age);
   }
+  const cNext=document.getElementById('set_callout_next_pct');
+  if(cNext && document.activeElement!==cNext && !cNext.dataset.dirty && c.callout_next_pct!=null) cNext.value=Number(c.callout_next_pct);
+  const rPct=document.getElementById('set_openhold_max_pct');
+  if(rPct && document.activeElement!==rPct && !rPct.dataset.dirty && c.openhold_max_pct!=null) rPct.value=Number(c.openhold_max_pct);
+  const rUsd=document.getElementById('set_openhold_max_usd');
+  if(rUsd && document.activeElement!==rUsd && !rUsd.dataset.dirty && c.openhold_max_unreal_usd!=null) rUsd.value=Number(c.openhold_max_unreal_usd);
   const autoAge=document.getElementById('set_openhold_auto_age');
   if(autoAge && document.activeElement!==autoAge && !autoAge.dataset.dirty && c.openhold_auto_age!=null){
     autoAge.value=String(c.openhold_auto_age);
@@ -3654,6 +4045,45 @@ if(setCopyFollow) setCopyFollow.onchange=()=>{
   const on=!!setCopyFollow.checked;
   sendSetting({copy_follow_exit:on}, 'Follow caller exit', on?'On. Caller sells all, this bot sells its copy now.':'Off. Dropoff decides.');
 };
+['set_openhold_max_pct','set_openhold_max_usd'].forEach(id=>{
+  const el=document.getElementById(id);
+  if(el) el.addEventListener('input', ()=>{ el.dataset.dirty='1'; });
+});
+const setCalloutNext=document.getElementById('set_callout_next_pct');
+if(setCalloutNext) setCalloutNext.addEventListener('input', ()=>{ setCalloutNext.dataset.dirty='1'; });
+const btnCalloutNext=document.getElementById('btnSaveCalloutNext');
+if(btnCalloutNext) btnCalloutNext.onclick=()=>{
+  const n=Number(setCalloutNext?setCalloutNext.value:'-25');
+  if(!isFinite(n)||n>=0){
+    toast({level:'warn',title:'Callout next trade',message:'Type a negative percent such as -25.'});
+    return;
+  }
+  if(setCalloutNext) delete setCalloutNext.dataset.dirty;
+  const dash=document.getElementById('cfg_callout_next_pct');
+  if(dash) dash.value=n;
+  sendSetting({callout_next_pct:n}, 'Callout next trade', 'Next Callout coin opens at '+n+'% on the open trade, or when it closes.');
+};
+const btnOhRange=document.getElementById('btnSaveOpenholdRange');
+if(btnOhRange) btnOhRange.onclick=()=>{
+  const pEl=document.getElementById('set_openhold_max_pct');
+  const uEl=document.getElementById('set_openhold_max_usd');
+  const pct=Number(pEl?pEl.value:'5');
+  const usd=Number(uEl?uEl.value:'100');
+  if(!isFinite(pct)||pct<=0){
+    toast({level:'warn',title:'Auto-open range',message:'Percentage top must be above 0, such as 5.'});
+    return;
+  }
+  if(!isFinite(usd)||usd<0){
+    toast({level:'warn',title:'Auto-open range',message:'Unrealized top must be $0 or more, such as 100.'});
+    return;
+  }
+  if(pEl) delete pEl.dataset.dirty;
+  if(uEl) delete uEl.dataset.dirty;
+  sendSetting({openhold_max_pct:pct, openhold_max_unreal_usd:usd}, 'Auto-open range',
+    'Opens at unrealized $0.00 to $'+usd.toLocaleString()+' and percentage above 0% to +'+pct+'%.');
+  const msg=document.getElementById('setOpenholdRangeMsg');
+  if(msg) msg.textContent='Saved. Auto-buy: unrealized $0.00 to $'+usd.toLocaleString()+', percentage above 0% to +'+pct+'%. The $0.00 and 0% floors are fixed. A clicked Buy ignores this range.';
+};
 const setCopyStop=document.getElementById('set_copy_stop_pct');
 if(setCopyStop) setCopyStop.addEventListener('input', ()=>{ setCopyStop.dataset.dirty='1'; });
 const btnCopyStop=document.getElementById('btnSaveCopyStop');
@@ -3695,15 +4125,15 @@ if(btnAge) btnAge.onclick=()=>{
   const raw=setAge?setAge.value:'0';
   const secs=parseCalloutAge(raw);
   if(secs==null){
-    toast({level:'warn',title:'Callout sell indication',message:'Type 0 to turn it off, or an age such as 1m, 45m, 1h, 2h, 1d.'});
+    toast({level:'warn',title:'AgeEnded',message:'Type an age such as 1h, 2h, 3h, 5h, 1d, 2d, or 0 to turn it off.'});
     return;
   }
   const stored=secs===0?'0':String(raw||'').trim().toLowerCase().replace(/\s+/g,'');
   if(setAge){ setAge.dataset.dirty=''; setAge.value=stored; }
   const msg=stored==='0'
-    ? 'Off. 0 does not sell. A Callout stays open until take-profit, the caller sells, dust, or the button. A null 5m does not sell.'
-    : 'A Callout trade open at least '+stored+' sells in full and frees its slot.';
-  sendSetting({callout_sell_age:stored}, 'Callout sell indication', msg);
+    ? 'Off. A Callout or OpenCopy trade stays open until take-profit, the caller sells, dust, or you sell it.'
+    : 'A Callout or OpenCopy trade open '+stored+' sells in full and frees its slot.';
+  sendSetting({callout_sell_age:stored}, 'AgeEnded', msg);
 };
 const setOhAuto=document.getElementById('set_openhold_auto_age');
 if(setOhAuto) setOhAuto.addEventListener('input', ()=>{ setOhAuto.dataset.dirty='1'; });
@@ -3720,6 +4150,29 @@ if(btnOhAuto) btnOhAuto.onclick=()=>{
   if(setOhAuto){ setOhAuto.dataset.dirty=''; setOhAuto.value=compact; }
   sendSetting({openhold_auto_age:compact}, 'OpenHolds auto-open', 'Auto-buy picks a coin opened within '+compact+'. A click has no age limit.');
 };
+const calloutBodyEl=document.getElementById('calloutBody');
+if(calloutBodyEl) calloutBodyEl.addEventListener('click', (e)=>{
+  const btn=e.target.closest&&e.target.closest('.co-act');
+  if(!btn) return;
+  e.preventDefault();
+  const mint=btn.getAttribute('data-mint')||'';
+  const symbol=btn.getAttribute('data-symbol')||'Coin';
+  if(btn.getAttribute('data-act')==='sell'){
+    sellMint(mint, true);
+    return;
+  }
+  btn.disabled=true;
+  fetch('/api/openhold-order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    action:'buy', mint, symbol, name:btn.getAttribute('data-name')||'',
+    user:btn.getAttribute('data-user')||'', wallet:btn.getAttribute('data-wallet')||'', force:true,
+  })})
+    .then(r=>r.json())
+    .then(data=>toast(data.ok
+      ? {level:'ok',title:'Buy',message:symbol+' opening.'}
+      : {level:'warn',title:'Callout',message:data.error||'Not queued'}))
+    .catch(()=>toast({level:'warn',title:'Callout',message:'Request failed'}))
+    .finally(()=>{ setTimeout(()=>{ btn.disabled=false; }, 3000); });
+});
 async function sellMint(mint, force){
   const direct=force!==false;
   try{
@@ -3774,6 +4227,7 @@ document.getElementById('cfg_filter_mode').onchange=()=>{
     predict_enabled: mode==='predict',
     callout_enabled: mode==='callout',
     opencopy_enabled: mode==='opencopy',
+    mayhem_enabled: mode==='mayhem',
   }}));
   toast({level:'buy',title:'Filter mode',message:mode+' — running this now'});
 };
@@ -3976,8 +4430,14 @@ document.getElementById('btnAuto').onclick=()=>{
   window._ws.send(JSON.stringify({type:'config_update',config:{trade_enabled:next}}));
   toast({level:next?'buy':'warn',title:next?'Auto trade ON':'Auto trade OFF',message:next?'New buys are allowed.':'No new buys. An open coin still sells on its rules.'});
 };
+['cfg_max_position_sol','cfg_min_liquidity_sol','cfg_time_stop_seconds','cfg_hard_stop_pct','cfg_runner_stop_pct','cfg_trail_activate_pct','cfg_trail_drawdown_pct','cfg_absolute_max_tip_sol','cfg_max_concurrent'].forEach(id=>{
+  const el=document.getElementById(id);
+  if(el) el.addEventListener('input',()=>{ el.dataset.dirty='1'; });
+});
 document.getElementById('btnApply').onclick=()=>{
   if(!window._ws||window._ws.readyState!==1)return alert('WebSocket not connected');
+  const maxPos=parseFloat(document.getElementById('cfg_max_position_sol').value);
+  if(!(maxPos>0)) return toast({level:'warn',title:'Max position',message:'Enter the SOL per buy, such as 0.03.'});
   const tp1=parseFloat(document.getElementById('cfg_tp1').value);
   const tp1f=parseFloat(document.getElementById('cfg_tp1_frac').value);
   const tp2=parseFloat(document.getElementById('cfg_tp2').value);
@@ -3986,6 +4446,9 @@ document.getElementById('btnApply').onclick=()=>{
   const tp3fel=document.getElementById('cfg_tp3_frac');
   const tp3=tp3el?parseFloat(tp3el.value):NaN;
   const tp3f=tp3fel?parseFloat(tp3fel.value):NaN;
+  // First bank % or sell fraction empty / 0: hold mode for Callout and OpenCopy. The saved ladder stays
+  // as it is for the other sources.
+  const holdOnly=!(tp1>0)||!(tp1f>0);
   const levels=[tp1];
   const fracs=[tp1f];
   if(!isNaN(tp2) && tp2>0){ levels.push(tp2); fracs.push(isNaN(tp2f)?0.5:tp2f); }
@@ -4001,8 +4464,7 @@ document.getElementById('btnApply').onclick=()=>{
     trail_drawdown_pct:parseFloat(document.getElementById('cfg_trail_drawdown_pct').value),
     runner_stop_pct:parseFloat(document.getElementById('cfg_runner_stop_pct').value),
     fallback_arm_pct:parseFloat(document.getElementById('cfg_fallback_arm').value)||0,
-    tp_levels:levels,
-    tp_fractions:fracs,
+    hold_only:holdOnly,
     absolute_max_tip_sol:parseFloat(document.getElementById('cfg_absolute_max_tip_sol').value),
     max_concurrent:parseInt(document.getElementById('cfg_max_concurrent').value,10),
     callout_next_pct:parseFloat(document.getElementById('cfg_callout_next_pct').value),
@@ -4011,7 +4473,13 @@ document.getElementById('btnApply').onclick=()=>{
     preset_name:document.getElementById('cfg_preset_name').value.trim(),
     save_preset:true,
   };
+  if(!holdOnly){ config.tp_levels=levels; config.tp_fractions=fracs; }
+  config.fast_pace_max_sol=config.max_position_sol;   // one Max position everywhere
   window._ws.send(JSON.stringify({type:'config_update',config}));
+  document.querySelectorAll('[id^="cfg_"]').forEach(el=>{ delete el.dataset.dirty; });
+  const fpm=document.getElementById('set_fast_pace_max');
+  if(fpm){ fpm.value=config.max_position_sol; delete fpm.dataset.dirty; }
+  if(holdOnly) toast({level:'buy',title:'Hold mode on',message:'Callout and OpenCopy: no take-profit, Fast Pace, stop, AgeEnded or trail. A trade sells only when the caller sells or you sell. New trades open on free slots ('+config.max_concurrent+').'});
   const builtins=['ath','plan','classic'];
   const selected=config.exit_style;
   const typed=(config.preset_name||'').trim();
@@ -4041,7 +4509,7 @@ function patchDashboardPnl(p){
   const cls=up?'g':down?'r':'';
   const pnl=p.priced && p.pnl_sol!=null?Number(p.pnl_sol):null;
   const pnlTxt=pnl==null?'…':((pnl>=0?'+':'')+pnl.toFixed(4)+' SOL');
-  const callout=p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy';
+  const callout=p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy'||p.strategy==='mayhem'||p.source==='mayhem';
   const held=document.querySelector('#heldBox [data-mint="'+CSS.escape(p.mint)+'"]');
   if(held){
     const pct=held.querySelector('[data-k="heldpct"]');
@@ -4092,12 +4560,21 @@ async function pollPulse(){
   const open=window._liveOpen||[];
   if(!body || !open.length || window._pulseBusy) return;
   window._pulseBusy=true;
+  const ctl=new AbortController();
+  const cut=setTimeout(()=>ctl.abort(), 2000);   // a hung request must not stop the poll for good
   try{
-    const r=await fetch('/api/live-prices',{cache:'no-store'});
+    const r=await fetch('/api/live-prices',{cache:'no-store',signal:ctl.signal});
     if(!r.ok) return;
     const data=await r.json();
     if(data && data.error) return;
     const list=Array.isArray(data)?data:(data.rows||[]);
+    // The server's open trades, read now. A card whose coin is not among them was sold: drop it at
+    // once, even if the live socket is behind.
+    const live=new Set(list.map(row=>row.mint));
+    if(open.some(p=>!live.has(p.mint))){
+      paintLiveTrades(open.filter(p=>live.has(p.mint)), window._liveNextPct);
+      return;
+    }
     for(const row of list){
       const p=open.find(item=>item.mint===row.mint);
       if(!p) continue;
@@ -4135,7 +4612,7 @@ async function pollPulse(){
       patchDashboardPnl(p);
     }
   }catch(err){}
-  finally{ window._pulseBusy=false; }
+  finally{ clearTimeout(cut); window._pulseBusy=false; }
 }
 setInterval(pollPulse, 100);
 connect();

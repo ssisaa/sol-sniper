@@ -337,8 +337,11 @@ class SupabaseStore:
         """Insert or update one row. The table keeps only the newest 100."""
         if not row.get("id"):
             return False
-        body = dict(row)
-        body.pop("payload", None)
+        # The full entry rides in payload. Keep its extra fields (caller name and wallet, coin name,
+        # 5m/1h at the buy...). Dropping it lost them on every restart, which reloads from here.
+        payload = row.get("payload") if isinstance(row.get("payload"), dict) else {}
+        body = dict(payload)
+        body.update({k: v for k, v in row.items() if k != "payload"})
         try:
             ts = float(body.get("ts") or 0)
         except (TypeError, ValueError):

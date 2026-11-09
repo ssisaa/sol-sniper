@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import logging
 import threading
 from datetime import datetime, timezone
@@ -150,6 +151,8 @@ def _callout_rows() -> tuple:
 
 
 _callout_lock = threading.Lock()
+CO_SHOW_WINDOW_S = 300.0   # CallOuts page shows calls opened in the last 5 minutes (pins always)
+_CO_EVERY_S = 1.2   # each CallOuts caller is re-read this often (its portfolio is one pump request)
 _callout_thread_started = False
 _callout_by_wallet: Dict[str, Dict[str, Any]] = {}
 _callout_tapes: Dict[str, Dict[str, Any]] = {}
@@ -227,55 +230,94 @@ def _num(value: Any) -> float:
         return 0.0
 
 
-def _latest_open(user_name: str, wallet: str) -> Optional[Dict[str, Any]]:
-    port = _pump_json(f"https://frontend-api-v3.pump.fun/user-portfolio/{wallet}?filter=open&sortBy=RECENCY")
-    positions = port.get("positions") if isinstance(port, dict) else None
-    latest = None
-    latest_ts = -1.0
-    for pos in positions or []:
-        if not isinstance(pos, dict) or pos.get("isExited"):
-            continue
-        ts = _opened_ts(pos.get("openedAt"))
-        if ts >= latest_ts:
-            latest, latest_ts = pos, ts
-    if not latest:
-        return None
-    total = None
-    try:
+_co_side: Dict[str, tuple] = {}     # cache key -> (ts, value): slow side reads for CallOuts
+_co_side_busy: Set[str] = set()
+_co_side_lock = threading.Lock()
+
+
+def _co_side_get(key: str, every: float, fetch):
+    """Last value at once; refreshed in the background when older than `every`. The row never waits."""
+    import time
+    with _co_side_lock:
+        hit = _co_side.get(key)
+        due = (hit is None or time.time() - hit[0] >= every) and key not in _co_side_busy
+        if due:
+            _co_side_busy.add(key)
+    if due:
+        def run():
+            try:
+                value = fetch()
+                with _co_side_lock:
+                    if value is not None or key not in _co_side:
+                        _co_side[key] = (time.time(), value)
+            except Exception:
+                log.debug("callout side read failed %s", key[:24], exc_info=True)
+            finally:
+                with _co_side_lock:
+                    _co_side_busy.discard(key)
+        _kept_pool("callout-side", 6).submit(run)
+    return hit[1] if hit else None
+
+
+def _co_summary(wallet: str) -> Optional[float]:
+    def fetch():
         summary = _pump_json(
             "https://frontend-api-v3.pump.fun/portfolio-summary"
             f"?user={wallet}&period=1d&holdings=1"
         )
         if isinstance(summary, dict) and summary.get("totalValueUsd") is not None:
-            total = float(summary["totalValueUsd"])
-    except Exception:
-        total = None
+            return float(summary["totalValueUsd"])
+        return None
+    return _co_side_get("sum|" + wallet, 15.0, fetch)
+
+
+def _co_hold(wallet: str, mint: str) -> Optional[Dict[str, Any]]:
+    if not mint:
+        return None
+    return _co_side_get(f"hold|{wallet}|{mint}", 8.0, lambda: _token_hold(wallet, mint))
+
+
+def _latest_open(user_name: str, wallet: str) -> Optional[Dict[str, Any]]:
+    from src.data.fast_get import callout_get
+    # Its own socket and no cache fallback: a 429 raises (the loop backs off) instead of quietly
+    # returning a body up to 60s old as if it were live.
+    port = callout_get(f"https://frontend-api-v3.pump.fun/user-portfolio/{wallet}?filter=open&sortBy=RECENCY", timeout=2.5)
+    positions = port.get("positions") if isinstance(port, dict) else None
+    latest = None
+    latest_ts = -1.0
+    for pos in positions or []:
+        if not isinstance(pos, dict) or pos.get("isExited") or _oh_junk(pos):
+            continue
+        low = str(pos.get("coinMint") or "").lower()
+        if not (low.endswith("pump") or low.startswith("pump")):
+            continue   # CallOuts lists pump.fun coins only: the caller's latest pump coin, not a Raydium/Meteora one
+        ts = _opened_ts(pos.get("openedAt"))
+        if ts >= latest_ts:
+            latest, latest_ts = pos, ts
+    if not latest:
+        return None
+    total = _co_summary(wallet)
     coin = latest.get("coin") if isinstance(latest.get("coin"), dict) else {}
     mint = latest.get("coinMint") or ""
+    # The portfolio row is exactly what the caller's pump.fun profile shows. It wins for USD.
     price = latest.get("tokenPriceUsd")
     cost_usd = latest.get("costBasisUsd")
     unreal_usd = latest.get("pnlUsd")
     pct_usd = latest.get("pnlPercentage")
     realized_usd = latest.get("realizedPnlUsd")
     cost_sol = unreal_sol = pct_sol = realized_sol = None
-    hold = None
-    try:
-        hold = _token_hold(wallet, mint)
-    except Exception:
-        hold = None
+    hold = _co_hold(wallet, mint)
     if isinstance(hold, dict):
-        if hold.get("token_price") is not None:
+        if price is None and hold.get("token_price") is not None:
             price = hold.get("token_price")
         pnl = hold.get("tokenPnL") if isinstance(hold.get("tokenPnL"), dict) else {}
-        if pnl.get("cost_basis_usd") is not None:
+        if cost_usd is None and pnl.get("cost_basis_usd") is not None:
             cost_usd = pnl.get("cost_basis_usd")
-        if pnl.get("unrealized_usd") is not None:
+        if unreal_usd is None and pnl.get("unrealized_usd") is not None:
             unreal_usd = pnl.get("unrealized_usd")
-        if pnl.get("percentage_usd") is not None:
-            pct_usd = pnl.get("percentage_usd")
-        elif pnl.get("percentage") is not None:
-            pct_usd = pnl.get("percentage")
-        if pnl.get("realized_pnl_usd") is not None:
+        if pct_usd is None:
+            pct_usd = pnl.get("percentage_usd") if pnl.get("percentage_usd") is not None else pnl.get("percentage")
+        if realized_usd is None and pnl.get("realized_pnl_usd") is not None:
             realized_usd = pnl.get("realized_pnl_usd")
         cost_sol = pnl.get("cost_basis_sol")
         unreal_sol = pnl.get("unrealized_sol")
@@ -304,7 +346,75 @@ def _latest_open(user_name: str, wallet: str) -> Optional[Dict[str, Any]]:
         "realizedPnlSol": _num(realized_sol),
         "openedAt": latest_ts,
         "totalValueUsd": total,
+        # For the live overlay: PnL = held x live price - cost + realized, the same sum pump makes.
+        "amountHeld": _num(latest.get("amountHeld")),
+        "amountBoughtUsd": _num(latest.get("amountBoughtUsd")),
+        "receiptBasisUsd": _num(latest.get("receiptBasisUsd")),
+        "pumpUnpriced": latest.get("tokenPriceUsd") is None and latest.get("valueUsd") is None,
+        "readAt": __import__("time").time(),
     }
+
+
+def _pct_basis(bought, receipt, pnl_usd, pnl_pct, cost) -> Optional[float]:
+    """What pump divides PnL by for its percent. amountBoughtUsd is 0 when the coins came in by
+    transfer (tokenized stocks, bridged coins); pump then uses receiptBasisUsd. Dividing by the
+    small leftover cost instead gave -1335% for a coin pump shows at -3.2%."""
+    def f(v):
+        try:
+            v = float(v)
+        except (TypeError, ValueError):
+            return None
+        return v if v > 0 else None
+    for v in (bought, receipt):
+        if f(v):
+            return f(v)
+    try:
+        implied = abs(float(pnl_usd) / float(pnl_pct) * 100.0)
+        if implied > 0:
+            return implied
+    except (TypeError, ValueError, ZeroDivisionError):
+        pass
+    return f(cost)
+
+
+def _co_live(row: Dict[str, Any]) -> Dict[str, Any]:
+    """CallOuts row with PnL at the last trade on the socket (free PumpPortal stream), when that
+    trade is newer than the portfolio read. pump's portfolio can only be re-read every few seconds
+    per caller; the socket prints every trade."""
+    mint = str(row.get("coinMint") or "")
+    if not mint:
+        return row
+    hit = stream_px_usd(mint, max_age=600.0)
+    if not hit or hit[1] < float(row.get("readAt") or 0) - 1.0:
+        return row
+    price = float(hit[0] or 0)
+
+    def num(key):
+        try:
+            value = row.get(key)
+            return None if value in (None, "") else float(value)
+        except (TypeError, ValueError):
+            return None
+
+    held, cost = num("amountHeld"), num("costBasisUsd")
+    if row.get("pumpUnpriced") and price > 0:
+        out = dict(row)            # pump has no price for this position: its PnL stays, price is live
+        out["tokenPrice"] = price
+        out["pxAt"] = hit[1]
+        return out
+    if price <= 0 or not held or held <= 0 or not cost or cost <= 0:
+        return row
+    realized = num("realizedPnlUsd") or 0.0
+    pnl = held * price - cost + realized
+    basis = _pct_basis(num("amountBoughtUsd"), num("receiptBasisUsd"), row.get("unrealizedUsd"),
+                       row.get("percentageUsd"), cost) or cost
+    out = dict(row)
+    out["tokenPrice"] = price
+    out["unrealizedUsd"] = pnl
+    out["percentageUsd"] = pnl / basis * 100.0
+    out["percentage"] = out["percentageUsd"]
+    out["pxAt"] = hit[1]
+    return out
 
 
 _own_book: Dict[str, Dict[str, Any]] = {}
@@ -539,13 +649,19 @@ def _callout_decision(row: Dict[str, Any], fresh_wallets: int, tape: Dict[str, A
 
     early_tape = m5 is None or (0 <= m5 <= 25 and (h1 is None or h1 > -15))
     buyers_ok = buy_share is None or (buy_share >= 0.55 and buyers >= sellers)
+    if age >= CO_SHOW_WINDOW_S:
+        # Auto-trade opens only calls from the last 5 minutes, the same window the page shows.
+        return "WAIT", f"Opened {int(age // 60)}m ago. Only calls from the last 5 minutes are opened."
     if age < 300 and -8 <= pct <= 25 and early_tape and buyers_ok:
         return "OPEN", f"New open, caller {pct:+.0f}%. Not extended. {tape_txt}.{crowd}"
-    if age < 900 and m5 is not None and 0.3 <= m5 <= 18 and -8 <= pct <= 20 and buyers_ok:
+    if age < CO_SHOW_WINDOW_S and m5 is not None and 0.3 <= m5 <= 18 and -8 <= pct <= 20 and buyers_ok:
         return "OPEN", f"5m is {m5:+.1f}% and the caller is only {pct:+.0f}%. The move is still early.{crowd}"
     if age >= 300 and (m5 is None or m5 < 0.3):
         return "WAIT", f"Opened {int(age)}s ago and {tape_txt}. Stand aside until a new open prints."
     return "WAIT", f"Caller {pct:+.0f}%, {tape_txt}. No clean open and no reason to close."
+
+
+_tape_busy: Set[str] = set()
 
 
 def _apply_calls(rows: List[Dict[str, Any]]) -> None:
@@ -559,8 +675,23 @@ def _apply_calls(rows: List[Dict[str, Any]]) -> None:
         hit = _callout_tapes.get(mint)
         if mint and (not hit or now - float(hit.get("ts") or 0) > 20) and mint not in needed:
             needed.append(mint)
-    for mint in needed[:6]:
-        _callout_tapes[mint] = _read_tape(mint)
+    for mint in needed[:12]:
+        # In the background: this runs once per finished caller, and reading tapes here made
+        # every caller wait on up to 6 pump reads in a row. The row uses the last tape meanwhile.
+        if mint in _tape_busy:
+            continue
+        _tape_busy.add(mint)
+
+        def fetch(m=mint):
+            try:
+                tape = _read_tape(m)
+                if tape:
+                    _callout_tapes[m] = tape
+            except Exception:
+                log.debug("tape read failed %s", m[:8], exc_info=True)
+            finally:
+                _tape_busy.discard(m)
+        _kept_pool("callout-tapes", 6).submit(fetch)
     if len(_callout_tapes) > 500:
         oldest = sorted(_callout_tapes, key=lambda key: _callout_tapes[key].get("ts") or 0)[:80]
         for key in oldest:
@@ -583,6 +714,22 @@ def _apply_calls(rows: List[Dict[str, Any]]) -> None:
         row["m1"] = tape.get("m1")
 
 
+_kept_pools: Dict[str, Any] = {}
+_kept_pools_lock = threading.Lock()
+
+
+def _kept_pool(name: str, workers: int):
+    """One long-lived thread pool per job. The pump client keeps one warm socket per thread, so a
+    pool made fresh every pass paid a new TLS handshake on every request (CallOuts took ~7s)."""
+    from concurrent.futures import ThreadPoolExecutor
+    with _kept_pools_lock:
+        pool = _kept_pools.get(name)
+        if pool is None:
+            pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix=name)
+            _kept_pools[name] = pool
+        return pool
+
+
 def _callout_loop() -> None:
     import time
     from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -597,6 +744,35 @@ def _callout_loop() -> None:
         f"&session_start_timestamp_ms={started_ms}"
     )
     last_warn = 0.0
+    pool = _kept_pool("callouts", 16)
+    inflight: Set[str] = set()
+    last_done: Dict[str, float] = {}
+    dirty: Set[str] = set()
+    last_people: List[str] = []
+
+    pace = {"every": _CO_EVERY_S, "reads": 0, "limited": 0, "at": time.time()}
+
+    def done(wallet: str, fut) -> None:
+        try:
+            row = fut.result()
+            limited = False
+        except Exception as exc:
+            row = None
+            limited = "429" in str(exc)
+        with _callout_lock:
+            pace["reads"] += 1
+            if limited:
+                # pump is rate-limiting: read each caller less often until it stops
+                pace["limited"] += 1
+                pace["every"] = min(6.0, pace["every"] * 1.5)
+            elif row:
+                pace["every"] = max(_CO_EVERY_S, pace["every"] * 0.995)   # ease back slowly: sit just under pump's limit
+            if row:
+                _callout_by_wallet[wallet] = row
+                dirty.add(wallet)
+            inflight.discard(wallet)
+            last_done[wallet] = time.time()
+
     while True:
         started = time.time()
         try:
@@ -614,36 +790,33 @@ def _callout_loop() -> None:
                     continue
                 seen.add(wallet)
                 people.append((pos.get("userName") or "", wallet))
-            fresh: Dict[str, Dict[str, Any]] = {}
+            # Each caller refreshes on its own clock. A caller with a big portfolio (~2s at pump)
+            # no longer holds back the others: a fast caller is re-read about once a second.
+            now_t = time.time()
+            for name, wallet in people:
+                if wallet in inflight or now_t - float(last_done.get(wallet) or 0) < pace["every"]:
+                    continue
+                inflight.add(wallet)
+                fut = pool.submit(_latest_open, name, wallet)
+                fut.add_done_callback(lambda f, w=wallet: done(w, f))
             with _callout_lock:
-                kept = dict(_callout_by_wallet)
-            if people:
-                with ThreadPoolExecutor(max_workers=8) as pool:
-                    futs = {
-                        pool.submit(_latest_open, name, wallet): wallet
-                        for name, wallet in people
-                    }
-                    for fut in as_completed(futs):
-                        wallet = futs[fut]
-                        try:
-                            row = fut.result()
-                        except Exception:
-                            row = None
-                        if row:
-                            fresh[wallet] = row
-                        merged = dict(kept)
-                        merged.update(fresh)
-                        shown_map = {w: merged[w] for _name, w in people if w in merged}
-                        shown = sorted(shown_map.values(), key=lambda item: float(item.get("openedAt") or 0), reverse=True)
-                        _apply_calls(shown)
-                        with _callout_lock:
-                            _callout_by_wallet.clear()
-                            _callout_by_wallet.update(shown_map)
-                            _callout_cache["rows"] = shown
-                            _callout_cache["error"] = ""
-                            _callout_cache["ts"] = time.time()
-                        remember_callers(shown)
-            else:
+                changed = bool(dirty)
+                dirty.clear()
+                stored = dict(_callout_by_wallet)
+            if people and (changed or [w for _n, w in people] != last_people):
+                last_people[:] = [w for _n, w in people]
+                shown_map = {w: stored[w] for _name, w in people if w in stored}
+                shown = sorted(shown_map.values(), key=lambda item: float(item.get("openedAt") or 0), reverse=True)
+                _apply_calls(shown)
+                with _callout_lock:
+                    for w in list(_callout_by_wallet):
+                        if w not in shown_map and w not in inflight:
+                            _callout_by_wallet.pop(w, None)   # left the home feed
+                    _callout_cache["rows"] = shown
+                    _callout_cache["error"] = ""
+                    _callout_cache["ts"] = time.time()
+                remember_callers(shown)
+            elif not people:
                 with _callout_lock:
                     _callout_cache["error"] = "home feed empty"
                     _callout_cache["ts"] = time.time()
@@ -657,7 +830,13 @@ def _callout_loop() -> None:
                 last_warn = time.time()
             time.sleep(30.0 if blocked else max(0.4, 2.0 - (time.time() - started)))
             continue
-        time.sleep(max(0.4, 3.0 - (time.time() - started)))
+        if time.time() - pace["at"] >= 30.0:
+            with _callout_lock:
+                reads, limited, every = pace["reads"], pace["limited"], pace["every"]
+                pace["reads"] = pace["limited"] = 0
+                pace["at"] = time.time()
+            log.info("CALLOUTS 30s: %d caller reads, %d rate-limited, each caller every %.1fs", reads, limited, every)
+        time.sleep(max(0.05, 0.2 - (time.time() - started)))
 
 
 _predict_cache: Dict[str, Any] = {"ts": 0.0, "rows": [], "error": ""}
@@ -1076,6 +1255,26 @@ def wallet_for_user(name: str) -> Dict[str, str]:
 
 _load_callers()
 
+
+def _register_mayhem() -> None:
+    """Mayhem_Mode is a fixed caller: always known, never picked from the dropdown."""
+    from src.config.runtime import MAYHEM_USER, MAYHEM_WALLET
+    with _caller_lock:
+        _callers[MAYHEM_USER.casefold()] = {"userName": MAYHEM_USER, "walletAddress": MAYHEM_WALLET}
+
+
+_register_mayhem()
+_mayhem_view_at = [0.0]
+
+
+def _mayhem_wallet_live() -> str:
+    """Mayhem wallet while the Mayhem source is on or the MayhemMode page was open in the last 30s."""
+    import time
+    from src.config.runtime import MAYHEM_WALLET, mayhem_on
+    if mayhem_on() or time.time() - _mayhem_view_at[0] < 30:
+        return MAYHEM_WALLET
+    return ""
+
 _watch_path = Path(__file__).resolve().parents[2] / "logs" / "openholds_watch.json"
 _watch_lock = threading.Lock()
 _openholds_watch: Dict[str, Any] = {"picks": []}
@@ -1250,6 +1449,9 @@ def _wallet_tokens(wallet: str) -> Dict[str, Dict[str, Any]]:
     return found
 
 
+from src.config.runtime import MAYHEM_WALLET
+
+
 def _caller_book(wallet: str) -> Dict[str, Any]:
     """One open-portfolio read, shared for a second. A failed read keeps the last good one."""
     import time
@@ -1258,19 +1460,23 @@ def _caller_book(wallet: str) -> Dict[str, Any]:
     now = time.time()
     with _hold_lock:
         hit = _hold_cache.get(wallet)
-        if hit and now - float(hit.get("ts") or 0) < 1.0:
+        if hit and now - float(hit.get("ts") or 0) < (0.5 if wallet == MAYHEM_WALLET else 1.0):
             return hit
     book: Dict[str, Any] = {"ts": now, "ok": False, "positions": [], "tokens": {}, "error": ""}
     if not wallet:
         book["error"] = "no wallet"
         return book
     try:
-        port = _pump_json(
-            # RECENCY: pump returns only 200 positions. Sorted by value (the default), a caller
-            # with hundreds of coins hides a small new open; by recency it is first.
-            f"https://frontend-api-v3.pump.fun/user-portfolio/{wallet}?filter=open&sortBy=RECENCY",
-            timeout=0.6,
-        )
+        # Mayhem_Mode: newest 100 opens only (page 0), a smaller body so a new open lands sooner.
+        page = "&page=0&pageSize=100" if wallet == MAYHEM_WALLET else ""
+        # RECENCY: pump returns only 200 positions. Sorted by value (the default), a caller
+        # with hundreds of coins hides a small new open; by recency it is first.
+        url = f"https://frontend-api-v3.pump.fun/user-portfolio/{wallet}?filter=open{page}&sortBy=RECENCY"
+        if wallet == MAYHEM_WALLET:
+            from src.data.fast_get import mayhem_get
+            port = mayhem_get(url, timeout=1.5)     # own lane, never a stale cached body
+        else:
+            port = _pump_json(url, timeout=2.5)
     except Exception as exc:
         book["error"] = type(exc).__name__
     else:
@@ -1295,6 +1501,8 @@ def _caller_book(wallet: str) -> Dict[str, Any]:
                 book["totalValueUsd"] = total
         else:
             book["error"] = "bad portfolio"
+    if book["ok"] and wallet == MAYHEM_WALLET:
+        _mayhem_deep(book)
     with _hold_lock:
         prev = _hold_cache.get(wallet)
         if not book["ok"] and prev and prev.get("ok"):
@@ -1303,11 +1511,107 @@ def _caller_book(wallet: str) -> Dict[str, Any]:
     return book
 
 
+_mayhem_pages: Dict[int, Dict[str, Any]] = {}
+_mayhem_found: Dict[str, Dict[str, Any]] = {}   # held mint -> {"ts", "row"} from a deeper page
+_mayhem_absent: Dict[str, float] = {}           # held mint -> when a full search ended without it
+_mayhem_deep_busy = [False, 0.0]
+MAYHEM_DEEP_TTL_S = 4.0
+MAYHEM_DEEP_PAGES = 10
+
+
+def _mayhem_deep(book: Dict[str, Any]) -> None:
+    """Page 0 (100 newest) covers only ~15 minutes of Mayhem_Mode. A coin the bot still holds can be
+    older. Never blocks the page-0 read: a background search reads later pages and remembers each
+    held coin's row. Until it has an answer, a missing held coin goes in book["unsure"] and is never
+    treated as sold by the caller (the socket still catches a real exit at once)."""
+    import time
+    held = {m for m, pos in _bot_open().items() if _is_copy(pos, "mayhem")}
+    have = {str(p.get("coinMint") or "") for p in book.get("positions") or []}
+    for p in book.get("positions") or []:
+        m = str(p.get("coinMint") or "")
+        if m in held:
+            _mayhem_found[m] = {"ts": time.time(), "row": p}
+            _mayhem_absent.pop(m, None)
+    missing = {m for m in held if m and m not in have}
+    if not missing:
+        return
+    now = time.time()
+    unsure = []
+    for m in missing:
+        hit = _mayhem_found.get(m)
+        if hit and now - float(hit["ts"]) < 20:
+            book["positions"] = list(book["positions"]) + [hit["row"]]
+        elif now - _mayhem_absent.get(m, 0.0) < 20:
+            pass                      # a full search did not find it: the caller sold
+        else:
+            unsure.append(m)
+    if unsure:
+        book["unsure"] = sorted(unsure)
+    if not _mayhem_deep_busy[0] and now - _mayhem_deep_busy[1] >= MAYHEM_DEEP_TTL_S:
+        _mayhem_deep_busy[0] = True
+        _mayhem_deep_busy[1] = now
+        threading.Thread(target=_mayhem_deep_search, args=(set(missing),), name="mayhem-deep", daemon=True).start()
+
+
+def _mayhem_deep_search(missing: Set[str]) -> None:
+    import time
+    try:
+        def page_rows(page: int):
+            port = _pump_json(
+                f"https://frontend-api-v3.pump.fun/user-portfolio/{MAYHEM_WALLET}"
+                f"?filter=open&page={page}&pageSize=100&sortBy=RECENCY",
+                timeout=2.5,
+            )
+            rows = port.get("positions") if isinstance(port, dict) else None
+            if not isinstance(rows, list):
+                raise ValueError("bad portfolio")
+            return [r for r in rows if isinstance(r, dict)]
+        complete = True
+        page = 1
+        while missing and page < MAYHEM_DEEP_PAGES:
+            batch = list(range(page, min(page + 3, MAYHEM_DEEP_PAGES)))   # 3 pages at a time
+            results = list(_kept_pool("mayhem-deep", 3).map(
+                lambda n: (n, _safe(page_rows, n)), batch))
+            ended = False
+            for n, rows in results:
+                if rows is None:
+                    complete = False
+                    continue
+                for r in rows:
+                    m = str(r.get("coinMint") or "")
+                    if m in missing:
+                        _mayhem_found[m] = {"ts": time.time(), "row": r}
+                        _mayhem_absent.pop(m, None)
+                        missing.discard(m)
+                if len(rows) < 100:
+                    ended = True
+            if ended:
+                break
+            page += len(batch)
+        else:
+            if missing:
+                complete = False      # past the last page read: unknown, not sold
+        if complete and missing:
+            for m in missing:
+                _mayhem_absent[m] = time.time()
+                _mayhem_found.pop(m, None)
+    except Exception:
+        log.debug("mayhem deep search failed", exc_info=True)
+    finally:
+        _mayhem_deep_busy[0] = False
+
+
+def _safe(fn, *args):
+    try:
+        return fn(*args)
+    except Exception:
+        return None
+
 def caller_hold_state(wallet: str, name: str, symbol: str, mint: str) -> str:
     if not _useful(wallet):
         return "unknown"
     book = _caller_book(wallet)
-    if not book.get("ok"):
+    if not book.get("ok") or mint in (book.get("unsure") or ()):
         return "unknown"
     polled = "live" if _book_has(book.get("positions") or [], mint, name, symbol) else "out"
     return _stream_hold(wallet, mint, polled)
@@ -1380,8 +1684,8 @@ def refresh_pin_holds() -> List[Dict[str, Any]]:
             wallets.append(wallet)
     books: Dict[str, Dict[str, Any]] = {}
     if wallets:
-        workers = min(4, len(wallets))
-        with ThreadPoolExecutor(max_workers=workers) as pool:
+        pool = _kept_pool("pin-books", 4)
+        if True:
             for wallet, book in zip(wallets, pool.map(_caller_book, wallets)):
                 books[wallet] = book
     for pin, who in planned:
@@ -1400,7 +1704,7 @@ def refresh_pin_holds() -> List[Dict[str, Any]]:
         ready.append({"pin": pin, "who": who, "book": book})
         if not mint:
             continue
-        if not book.get("ok"):
+        if not book.get("ok") or mint in (book.get("unsure") or ()):
             _hold_by_mint[mint] = "unknown"
             continue
         polled = "live" if _book_has(book.get("positions") or [], mint, who["name"], who["symbol"]) else "out"
@@ -1488,16 +1792,125 @@ def _no_buy(pos: Dict[str, Any]) -> bool:
     return bought <= 0 and trades <= 0
 
 
+OH_OPEN_WINDOW_S = 15 * 60   # Open existing: coins the caller opened in the last 15 minutes
+OH_HIDE_WINDOW_S = 60 * 60   # Hide existing: 15 minutes to 1 hour. Older coins are not shown or streamed.
+MAYHEM_OPEN_S = 3 * 60       # MayhemMode Open existing: last 3 minutes
+MAYHEM_HIDE_S = MAYHEM_OPEN_S   # MayhemMode has no Hide existing: older than 3 minutes is not shown
+
+
+def _bot_open() -> Dict[str, Dict[str, Any]]:
+    """The bot's real open trades (from the position manager), by mint. Survives a restart,
+    unlike the in-memory OpenHolds status."""
+    snap = getattr(bus, "_positions", None) or {}
+    out: Dict[str, Dict[str, Any]] = {}
+    for pos in (snap.get("open") if isinstance(snap, dict) else None) or []:
+        if isinstance(pos, dict) and pos.get("mint"):
+            out[str(pos["mint"])] = pos
+    return out
+
+
+def _bot_holds(mint: str) -> bool:
+    mint = str(mint or "")
+    return _oh_status.get(mint, "") in ("HOLDING", "BUYING") or mint in _bot_open()
+
+
+def _bot_sold_recent(window: float = 3600.0) -> Set[str]:
+    """Coins this bot sold in the last hour (from the ledger, so it survives a restart)."""
+    import time
+    cutoff = time.time() - window
+    out: Set[str] = set()
+    try:
+        from src.observability.ledger import get_ledger
+        for e in list(get_ledger().entries)[-200:]:
+            if str(getattr(e, "side", "")).upper() == "CLOSE" and float(getattr(e, "ts", 0) or 0) >= cutoff:
+                out.add(str(getattr(e, "mint", "") or ""))
+    except Exception:
+        log.debug("sold list read failed", exc_info=True)
+    out.discard("")
+    return out
+
+
+def _bot_hold_row(pos: Dict[str, Any], caller_row: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Holding table row. The caller's live row when the caller still holds it (matches pump),
+    else the bot's own trade, marked CALLER OUT."""
+    bot_pct = pos.get("sol_paid_pct") if pos.get("sol_paid_pct") is not None else pos.get("pnl_pct")
+    if caller_row:
+        row = dict(caller_row)
+        row["botStatus"] = "HOLDING"
+        row["botPct"] = bot_pct           # the bot's own trade, live (SOL value now vs SOL paid)
+        row["botPnlSol"] = pos.get("pnl_sol")
+        # AGEOPENED on a held coin is the bot's own trade age. The caller's openedAt can be hours
+        # older (a top-up of a coin it already held).
+        if float(pos.get("entry_ts") or 0) > 0:
+            row["callerOpenedAt"] = row.get("openedAt")
+            row["openedAt"] = float(pos.get("entry_ts"))
+        return row
+    sol = _oh_sol_fast()
+    cost = float(pos.get("entry_sol") or 0) * sol if sol > 0 else None
+    return {
+        "coinMint": pos.get("mint"),
+        "name": pos.get("name") or "",
+        "symbol": pos.get("symbol") or "",
+        "openedAt": float(pos.get("entry_ts") or 0),
+        "token_price": pos.get("price_usd"),
+        "cost_basis_usd": cost,
+        "unrealized_usd": pos.get("pnl_usd"),
+        "percentage_usd": pos.get("pnl_pct"),
+        "percentage": pos.get("sol_paid_pct") if pos.get("sol_paid_pct") is not None else pos.get("pnl_pct"),
+        "realized_pnl_usd": None,
+        "positionHold": "CALLER OUT",
+        "botStatus": "HOLDING",
+        "botPct": bot_pct,
+        "botPnlSol": pos.get("pnl_sol"),
+        "m5": pos.get("live_m5_pct"),
+    }
+
+
+def _oh_junk(pos: Dict[str, Any]) -> str:
+    """Why pump would put this position in "Dust, spam, and hidden". Empty when it is a real open.
+
+    A coin this bot holds is never junk: it stays pinned until closed.
+    """
+    mint = str(pos.get("coinMint") or "")
+    if _bot_holds(mint):
+        return ""
+    if _caller_bought(str(pos.get("walletAddress") or ""), mint):
+        return ""   # the socket saw the caller buy it on-chain: real, even before pump's flags settle
+    if pos.get("potentialSpam") and not pos.get("userMarkedNonSpam"):
+        return "spam"
+    if pos.get("dustFloorFiltered") or pos.get("likelyLost"):
+        return "hidden"
+    try:
+        value = float(pos.get("valueUsd")) if pos.get("valueUsd") is not None else None
+    except (TypeError, ValueError):
+        value = None
+    if value is not None and 0 < value < 1.0:
+        return "dust"   # pump: positions worth less than $1
+    if _no_buy(pos) and not _caller_bought(str(pos.get("walletAddress") or ""), mint):
+        return "transfer"   # only sent to the caller, never bought
+    return ""
+
+
+def _oh_in_window(pos: Dict[str, Any], now: float) -> bool:
+    """Opened within the last hour, or held by this bot."""
+    if _bot_holds(str(pos.get("coinMint") or "")):
+        return True
+    opened = _opened_ts(pos.get("openedAt"))
+    return bool(opened) and now - opened <= OH_HIDE_WINDOW_S
+
+
 def _hold_rows(book: Dict[str, Any], tokens: Dict[str, Dict[str, Any]], cutoff: float) -> List[Dict[str, Any]]:
+    import time
     rows: List[Dict[str, Any]] = []
+    now = time.time()
     for pos in book.get("positions") or []:
         if not isinstance(pos, dict) or pos.get("isExited"):
             continue
-        if pos.get("potentialSpam") and not pos.get("userMarkedNonSpam"):
-            continue   # pump's own spam flag (airdropped junk); pump hides these too
+        if not _oh_in_window(pos, now) or _oh_junk(pos):
+            continue   # older than 1 hour, or pump's dust / spam / hidden: never shown or streamed
         opened = _opened_ts(pos.get("openedAt"))
-        if cutoff and (not opened or opened + 2 < cutoff):
-            continue
+        if cutoff and (not opened or opened + 2 < cutoff) and not _bot_holds(str(pos.get("coinMint") or "")):
+            continue   # older than the cutoff: not built at all (a coin the bot holds always is)
         coin = pos.get("coin") if isinstance(pos.get("coin"), dict) else {}
         coin_mint = str(pos.get("coinMint") or "")
         tok = tokens.get(coin_mint) or {}
@@ -1510,6 +1923,9 @@ def _hold_rows(book: Dict[str, Any], tokens: Dict[str, Dict[str, Any]], cutoff: 
             "token_price": _pos_price(pos, tok),
             "amount_held": pos.get("amountHeld"),
             "amount_bought_usd": pos.get("amountBoughtUsd"),
+            "receipt_basis_usd": pos.get("receiptBasisUsd"),
+            "pump_pnl_usd": pos.get("pnlUsd"),
+            "pump_pnl_pct": pos.get("pnlPercentage"),
             "cost_basis_usd": _pick(pnl, "cost_basis_usd") if _pick(pnl, "cost_basis_usd") is not None else pos.get("costBasisUsd"),
             "unrealized_usd": _pick(pnl, "unrealized_usd") if _pick(pnl, "unrealized_usd") is not None else pos.get("pnlUsd"),
             "percentage_usd": _pick(pnl, "percentage_usd") if _pick(pnl, "percentage_usd") is not None else pos.get("pnlPercentage"),
@@ -1525,6 +1941,17 @@ def _hold_rows(book: Dict[str, Any], tokens: Dict[str, Dict[str, Any]], cutoff: 
             rows[-1]["transfer"] = True
         _stamp_tape(rows[-1])
         _apply_live_row(rows[-1], pos)
+        if rows[-1].get("transfer") and not _bot_holds(coin_mint):
+            rows.pop()
+            continue
+        try:
+            live_val = float(rows[-1].get("amount_held") or 0) * float(rows[-1].get("token_price") or 0)
+        except (TypeError, ValueError):
+            live_val = 0.0
+        if 0 < live_val < 1.0 and not _bot_holds(coin_mint) and not _caller_bought(
+            str(pos.get("walletAddress") or ""), coin_mint
+        ):
+            rows.pop()   # dust at the live price (never a buy the socket saw: a bad price read must not hide it)
     rows.sort(key=lambda item: float(item.get("openedAt") or 0), reverse=True)
     return rows
 
@@ -1624,14 +2051,12 @@ def _openholds_refresh_loop() -> None:
                 wallet = str(who.get("walletAddress") or "")
                 if _useful(wallet):
                     wallets.append(wallet)
-            seen = []
+            seen = []   # Mayhem_Mode has its own loop (_mayhem_book_loop)
             for wallet in wallets:
                 if wallet not in seen:
                     seen.append(wallet)
             if seen:
-                workers = min(8, len(seen))
-                with ThreadPoolExecutor(max_workers=workers) as pool:
-                    list(pool.map(_caller_book, seen))
+                list(_kept_pool("oh-books", 8).map(_caller_book, seen))
             if time.time() - float(getattr(_openholds_refresh_loop, "_tape_at", 0) or 0) >= 1.0:
                 _openholds_refresh_loop._tape_at = time.time()
                 for wallet in seen:
@@ -1646,8 +2071,7 @@ def _openholds_refresh_loop() -> None:
                     log.debug("openholds pin refresh failed", exc_info=True)
                 fresh = [mint for mint in mints if mint][:8]
                 if fresh:
-                    with ThreadPoolExecutor(max_workers=min(4, len(fresh))) as pool:
-                        list(pool.map(_cached_tape, fresh))
+                    list(_kept_pool("oh-tapes", 4).map(_cached_tape, fresh))
         except Exception:
             log.debug("openholds refresh failed", exc_info=True)
         time.sleep(1.0)
@@ -1684,7 +2108,20 @@ def _stream_targets():
         wallet = str(who.get("walletAddress") or "")
         if _useful(wallet):
             wallets[wallet] = who.get("userName") or name
-    return wallets, _oh_listed_mints()
+    mayhem_wallet = _mayhem_wallet_live()
+    if mayhem_wallet:
+        from src.config.runtime import MAYHEM_USER
+        wallets[mayhem_wallet] = MAYHEM_USER
+    mints = list(_oh_listed_mints())
+    # CallOuts coins too, so their PnL moves on every trade. Socket only (free); the paid-RPC
+    # curve read still covers just the OpenHolds coins.
+    with _callout_lock:
+        co_rows = list(_callout_cache.get("rows") or [])
+    for row in co_rows:
+        mint = str(row.get("coinMint") or "")
+        if mint and mint not in mints and (mint.endswith("pump") or mint.startswith("pump")):
+            mints.append(mint)
+    return wallets, mints[:220]
 
 
 def _stream_on_event(event: Dict[str, Any]) -> None:
@@ -1696,6 +2133,33 @@ def _stream_on_event(event: Dict[str, Any]) -> None:
         _hold_by_mint[mint] = "out"
     elif event.get("kind") == "buy" and mint not in _stream_names:
         _stream_fetch_name(mint)
+
+
+_stream_name_tried: Dict[str, float] = {}
+
+
+def _stream_name(mint: str) -> Dict[str, str]:
+    """Name and symbol for a coin the socket saw before pump's portfolio lists it. From any cached
+    pump data for that coin first; else a coins-v2 lookup, retried every 2s until it answers."""
+    hit = _stream_names.get(mint)
+    if hit and (hit.get("name") or hit.get("symbol")):
+        return hit
+    with _hold_lock:
+        books = list(_hold_cache.values())
+    for book in books:
+        for pos in (book or {}).get("positions") or []:
+            if str(pos.get("coinMint") or "") == mint:
+                coin = pos.get("coin") if isinstance(pos.get("coin"), dict) else {}
+                if coin.get("name") or coin.get("symbol"):
+                    _stream_names[mint] = {"name": str(coin.get("name") or ""), "symbol": str(coin.get("symbol") or "")}
+                    return _stream_names[mint]
+    import time
+    if time.time() - _stream_name_tried.get(mint, 0.0) >= 2.0:
+        _stream_name_tried[mint] = time.time()
+        if len(_stream_name_tried) > 2000:
+            _stream_name_tried.clear()
+        _stream_fetch_name(mint)
+    return hit or {}
 
 
 def _stream_fetch_name(mint: str) -> None:
@@ -1739,6 +2203,124 @@ def start_caller_stream() -> None:
         log.warning("caller stream did not start", exc_info=True)
 
 
+# Some pump coins trade against another quote coin, not SOL (e.g. hSOL, Helius staked SOL, worth
+# ~1.18 SOL). Their curve reserves and socket trade amounts are in that quote coin. Reading them as
+# SOL priced the coin ~15% low against pump. The quote coin of each pump coin comes from its curve
+# account (free: the 0.2s curve read already has it) or pump's coin record. The SOL value of each
+# quote coin is kept per quote coin, on disk, so one hSOL rate serves every hSOL coin after a restart.
+_SOL_QUOTES = ("So11111111111111111111111111111111111111112", "11111111111111111111111111111111")
+_quote_of: Dict[str, str] = {}             # coin mint -> quote mint
+_quote_px: Dict[str, tuple] = {}           # quote mint -> (SOL per quote unit, ts)
+_quote_busy: Set[str] = set()
+_quote_retry: Dict[str, float] = {}        # coin mint -> no pump read before this time
+_QUOTE_TTL = 600.0
+_quote_loaded = False
+
+
+def _quote_file():
+    from pathlib import Path
+    return Path(__file__).resolve().parents[2] / "logs" / "quote_ratio.json"
+
+
+def _quote_load() -> None:
+    global _quote_loaded
+    if _quote_loaded:
+        return
+    _quote_loaded = True
+    try:
+        data = json.loads(_quote_file().read_text(encoding="utf-8"))
+        for q, item in (data.get("quotes") or {}).items():
+            _quote_px[q] = (float(item[0]), float(item[1]))
+        for m, q in (data.get("coins") or {}).items():
+            _quote_of.setdefault(m, q)
+    except Exception:
+        pass
+
+
+def _quote_save() -> None:
+    try:
+        coins = {m: q for m, q in list(_quote_of.items()) if q not in _SOL_QUOTES}
+        _quote_file().write_text(json.dumps({
+            "quotes": {q: [r, t] for q, (r, t) in list(_quote_px.items())},
+            "coins": dict(list(coins.items())[-500:]),
+        }), encoding="utf-8")
+    except Exception:
+        log.debug("quote save failed", exc_info=True)
+
+
+def note_curve_quote(mint: str, curve_raw: bytes) -> None:
+    """Quote coin from the bonding-curve account. The 166-byte layout carries it at offset 83."""
+    if len(curve_raw) < 115 + 51 or mint in _quote_of:
+        return
+    try:
+        from solders.pubkey import Pubkey
+        quote = str(Pubkey.from_bytes(bytes(curve_raw[83:115])))
+    except Exception:
+        return
+    if quote and set(curve_raw[83:115]) != {0}:
+        _quote_of[mint] = quote
+
+
+def _quote_fetch(mint: str) -> None:
+    import time
+    try:
+        coin = _pump_json(f"https://frontend-api-v3.pump.fun/coins-v2/{mint}", timeout=2.0)
+        if not isinstance(coin, dict) or not coin:
+            raise ValueError("no coin record")
+        quote = str(coin.get("quote_mint") or _SOL_QUOTES[0])
+        _quote_of[mint] = quote
+        if quote not in _SOL_QUOTES:
+            cap_quote = float(coin.get("market_cap_quote") or 0)
+            cap_sol = float(coin.get("market_cap") or 0)
+            cap_usd = float(coin.get("usd_market_cap") or coin.get("market_cap_usd") or 0)
+            sol_usd = _oh_sol_fast()
+            if cap_quote <= 0:
+                raise ValueError("no quote cap")
+            if cap_sol > 0:
+                ratio = cap_sol / cap_quote
+            elif cap_usd > 0 and sol_usd > 0:
+                ratio = (cap_usd / cap_quote) / sol_usd   # pump sometimes leaves market_cap (SOL) empty
+            else:
+                raise ValueError("no SOL or USD cap")
+            if not 0.2 < ratio < 50:
+                raise ValueError(f"odd ratio {ratio}")
+            prev = _quote_px.get(quote)
+            _quote_px[quote] = (ratio, time.time())
+            if prev is None or abs(prev[0] - ratio) / ratio > 0.01:
+                log.info("QUOTE %s trades against %s — 1 %s = %.4f SOL, prices scaled to match pump",
+                         mint[:8], quote[:8], quote[:6], ratio)
+            _quote_save()
+        _quote_retry.pop(mint, None)
+    except Exception as exc:
+        _quote_retry[mint] = time.time() + 5.0   # pump busy (429): try again in 5s, not every tick
+        log.debug("quote read failed %s: %s", mint[:8], exc)
+    finally:
+        _quote_busy.discard(mint)
+
+
+def quote_ratio(mint: str) -> Optional[float]:
+    """SOL per one unit of this coin's quote. 1.0 for SOL-quoted coins (and coins not checked yet).
+    None when the quote is another coin whose rate is not known yet: show pump's own numbers then,
+    never a price read as SOL."""
+    import time
+    _quote_load()
+    mint = str(mint or "")
+    if not mint:
+        return 1.0
+    quote = _quote_of.get(mint)
+    now = time.time()
+    if quote in _SOL_QUOTES:
+        return 1.0
+    hit = _quote_px.get(quote) if quote else None
+    due = quote is None or hit is None or now - hit[1] > _QUOTE_TTL
+    if due and mint not in _quote_busy and now >= _quote_retry.get(mint, 0.0):
+        _quote_busy.add(mint)
+        threading.Thread(target=_quote_fetch, args=(mint,), name="quote-mint", daemon=True).start()
+    if quote is None:
+        return 1.0
+    return hit[0] if hit else None
+
+
 def _stream_raw_usd(mint: str, max_age: float = 5.0):
     """Curve price from the last socket trade in USD, before matching it to pump's scale."""
     stream = _stream_if_on()
@@ -1750,7 +2332,10 @@ def _stream_raw_usd(mint: str, max_age: float = 5.0):
     sol = _oh_sol_fast()
     if sol <= 0:
         return None
-    return hit[0] * sol, hit[1]
+    q = quote_ratio(mint)
+    if q is None:
+        return None
+    return hit[0] * q * sol, hit[1]
 
 
 def stream_px_usd(mint: str, max_age: float = 5.0):
@@ -1848,7 +2433,11 @@ def stream_px_sol(mint: str, max_age: float = 5.0):
     stream = _stream_if_on()
     if stream is None:
         return None
-    return stream.price_sol(mint, max_age)
+    hit = stream.price_sol(mint, max_age)
+    q = quote_ratio(mint)
+    if not hit or q is None:
+        return None
+    return hit[0] * q, hit[1]
 
 
 def _stream_hold(wallet: str, mint: str, polled: str) -> str:
@@ -1874,8 +2463,10 @@ def _stream_rows(wallet: str, have: Set[str]) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     for item in stream.opens_for(wallet, since=time.time() - 3600):
         mint = str(item.get("mint") or "")
-        if not mint or mint in have:
-            continue
+        if not mint or mint in have or item.get("topup"):
+            continue   # a top-up of a coin the caller already held is not a new open
+        if float(item.get("checking") or 0) > time.time():
+            continue   # balance read still out (≤1.5s): new open or top-up not known yet
         bought = float(item.get("tokens") or 0)
         held = float(item.get("balance") or bought or 0)
         cost_sol = float(item.get("sol") or 0)
@@ -1883,13 +2474,18 @@ def _stream_rows(wallet: str, have: Set[str]) -> List[Dict[str, Any]]:
             continue
         hit = stream.price_sol(mint, 3600)
         price_sol = hit[0] if hit else (cost_sol / bought if bought else 0.0)
+        q = quote_ratio(mint)
+        if q is None:
+            continue   # quote coin's rate not known yet: no row rather than a wrong one
+        price_sol *= q
+        cost_sol *= q
         cost_usd = cost_sol * sol_usd if sol_usd > 0 else None
         price_usd = price_sol * sol_usd if sol_usd > 0 else None
         pnl = pct = None
         if cost_usd and price_usd:
             pnl = held * price_usd - cost_usd
             pct = pnl / cost_usd * 100.0
-        names = _stream_names.get(mint) or {}
+        names = _stream_name(mint)
         row = {
             "coinMint": mint,
             "name": names.get("name") or "",
@@ -1923,6 +2519,22 @@ def _with_stream(wallet: str, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]
         if not stream.exited(wallet, str(row.get("coinMint") or ""), float(row.get("openedAt") or 0) - 2)
     ]
     have = {str(row.get("coinMint") or "") for row in kept}
+    # A coin already in the caller's book (any age, even hidden as older than 1 hour) is not a new
+    # open when the socket sees another buy: that is a top-up. Pricing the whole bag against only
+    # the new buy gave a fake +1000%. It is a new open only if the socket saw the caller sell out first.
+    for pos in _book_cached(wallet).get("positions") or []:
+        if not isinstance(pos, dict) or pos.get("isExited"):
+            continue
+        mint = str(pos.get("coinMint") or "")
+        if not mint or mint in have:
+            continue
+        opened = _opened_ts(pos.get("openedAt"))
+        try:
+            sold_out = bool(stream.exited(wallet, mint, opened - 2)) if opened else False
+        except Exception:
+            sold_out = False
+        if not sold_out:
+            have.add(mint)
     extra = _stream_rows(wallet, have)
     if extra:
         kept = extra + kept
@@ -1930,11 +2542,69 @@ def _with_stream(wallet: str, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]
     return kept
 
 
+def _mayhem_book_loop() -> None:
+    """Mayhem_Mode's book, every 0.7s, on its own thread and request lane, while the Mayhem source is
+    on or the MayhemMode page is open. A slow or rate-limited CallOuts/OpenHolds read never delays it."""
+    import time
+    while True:
+        started = time.time()
+        try:
+            if _mayhem_wallet_live():
+                _caller_book(MAYHEM_WALLET)
+        except Exception:
+            log.debug("mayhem book read failed", exc_info=True)
+        time.sleep(max(0.15, 0.7 - (time.time() - started)))
+
+
+_mayhem_state: Dict[str, tuple] = {}      # mint -> (state, checked_at): pump coins-v2/<mint>/mayhem-state
+_mayhem_listed: Dict[str, float] = {}     # mints MayhemMode would list -> last time listed
+MAYHEM_STATE_EVERY_S = 4.0
+
+
+def mayhem_state_of(mint: str) -> str:
+    return str((_mayhem_state.get(mint) or ("", 0))[0] or "")
+
+
+def _mayhem_state_loop() -> None:
+    """Keeps each listed Mayhem coin's state fresh: never-checked coins first, then every 4s.
+    At most 3 reads per 0.5s, on their own lane. Idle when MayhemMode lists nothing."""
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+    pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="mayhem-state")
+
+    def read(mint: str) -> None:
+        from src.data.fast_get import mayhem_state_get
+        try:
+            body = mayhem_state_get(f"https://frontend-api-v3.pump.fun/coins-v2/{mint}/mayhem-state", timeout=1.5)
+        except Exception:
+            return
+        if isinstance(body, dict) and body.get("state"):
+            _mayhem_state[mint] = (str(body.get("state")).strip().lower(), time.time())
+    while True:
+        try:
+            now = time.time()
+            for mint in [m for m, at in list(_mayhem_listed.items()) if now - at > 60]:
+                _mayhem_listed.pop(mint, None)
+                _mayhem_state.pop(mint, None)
+            due = sorted(
+                (m for m in list(_mayhem_listed)
+                 if now - float((_mayhem_state.get(m) or ("", 0.0))[1]) >= MAYHEM_STATE_EVERY_S),
+                key=lambda m: float((_mayhem_state.get(m) or ("", 0.0))[1]),   # never checked first
+            )[:3]
+            if due:
+                list(pool.map(read, due))
+        except Exception:
+            log.debug("mayhem state loop failed", exc_info=True)
+        time.sleep(0.5)
+
+
 def _start_openholds_refresh() -> None:
     global _oh_refresh_started
     if _oh_refresh_started:
         return
     _oh_refresh_started = True
+    threading.Thread(target=_mayhem_book_loop, name="mayhem-book", daemon=True).start()
+    threading.Thread(target=_mayhem_state_loop, name="mayhem-state-loop", daemon=True).start()
     start_caller_stream()
     threading.Thread(target=_openholds_refresh_loop, name="openholds-refresh", daemon=True).start()
     threading.Thread(target=_oh_price_loop, name="openholds-price", daemon=True).start()
@@ -2039,6 +2709,7 @@ def open_holds_snapshot() -> Dict[str, Any]:
         "callers": [],
         "watch": watch,
         "picked": [],
+        "blocked": _openholds_blocked_view(),
     }
     for item in watch.get("picks") or []:
         name = str(item.get("user") or "").strip()
@@ -2051,7 +2722,123 @@ def open_holds_snapshot() -> Dict[str, Any]:
             payload["picked"].append(view)
         else:
             payload["picked"].append(book)
+    # An OpenCopy trade whose caller is not picked (any more) still gets its Holding table.
+    picked_names = {str(item.get("user") or "").strip().casefold() for item in watch.get("picks") or []}
+    extra: Dict[str, Dict[str, Any]] = {}
+    for pos in _bot_open().values():
+        name = str(pos.get("caller_name") or "").strip()
+        if not _is_copy(pos) or not name or name.casefold() in picked_names or name.casefold() in extra:
+            continue
+        extra[name.casefold()] = {"userName": name, "wallet": str(wallet_for_user(name).get("walletAddress") or ""),
+                                  "holding": _copy_holding(name)}
+    payload["copyHolding"] = list(extra.values())
     return payload
+
+
+def _is_copy(pos: Dict[str, Any], kind: str = "opencopy") -> bool:
+    return kind in (str(pos.get("source") or ""), str(pos.get("strategy") or ""))
+
+
+def _copy_holding(user: str, by_mint: Optional[Dict[str, Dict[str, Any]]] = None,
+                  kind: str = "opencopy") -> List[Dict[str, Any]]:
+    """OpenCopy (or Mayhem) trades the bot holds from this caller. Callout trades stay on CallOuts."""
+    by_mint = by_mint or {}
+    out: List[Dict[str, Any]] = []
+    for mint, pos in _bot_open().items():
+        if not _is_copy(pos, kind):
+            continue
+        if kind == "mayhem" or str(pos.get("caller_name") or "").casefold() == str(user or "").casefold():
+            out.append(_bot_hold_row(pos, by_mint.get(mint)))
+    out.sort(key=lambda item: float(item.get("openedAt") or 0), reverse=True)
+    return out
+
+
+def _is_pump_mint(mint: Any) -> bool:
+    low = str(mint or "").lower()
+    return low.endswith("pump") or low.startswith("pump")
+
+
+def _openholds_blocked_view() -> List[Dict[str, Any]]:
+    """OpenHolds' "Auto-trade held back" box: OpenCopy only. Mayhem_Mode's coins are on MayhemMode."""
+    from src.config.runtime import MAYHEM_USER, get_config
+    try:
+        cfg = get_config()
+        copy_on = str(getattr(cfg, "filter_mode", "") or "") == "opencopy" or bool(getattr(cfg, "opencopy_enabled", False))
+    except Exception:
+        copy_on = False
+    if not copy_on:
+        return []
+    return [item for item in openhold_blocked() if str(item.get("user") or "").casefold() != MAYHEM_USER.casefold()]
+
+
+_mayhem_notes: List[Dict[str, Any]] = []
+_mayhem_notes_lock = threading.Lock()
+
+
+def mayhem_note(level: str, message: str, mint: Optional[str] = None) -> None:
+    """One line in the MayhemMode Messages box (newest first, last 40). The same message for the
+    same coin within 20s updates that line instead of adding another."""
+    import time
+    now = time.time()
+    text = str(message or "").strip()
+    if not text:
+        return
+    with _mayhem_notes_lock:
+        for item in _mayhem_notes[:10]:
+            if item.get("mint") == (mint or "") and item.get("text") == text and now - float(item.get("ts") or 0) < 20:
+                item["ts"] = now
+                item["n"] = int(item.get("n") or 1) + 1
+                break
+        else:
+            _mayhem_notes.insert(0, {"ts": now, "level": str(level or "info"), "text": text, "mint": mint or "", "n": 1})
+            del _mayhem_notes[40:]
+        _mayhem_notes.sort(key=lambda item: -float(item.get("ts") or 0))
+
+
+def mayhem_snapshot() -> Dict[str, Any]:
+    """MayhemMode page: the one caller Mayhem_Mode. Open existing, Hide existing, and the bot's
+    Mayhem trades (Holding) until each closes. Never waits on pump: the refresh loop fills the book."""
+    import time
+    from src.config.runtime import MAYHEM_USER, MAYHEM_WALLET, mayhem_on
+    _mayhem_view_at[0] = time.time()
+    _start_openholds_refresh()
+    book = _picked_cached(MAYHEM_USER, 0)
+    holding = list(book.get("holding") or [])
+    held_now = {str(row.get("coinMint") or "") for row in holding}
+    active_rows: List[Dict[str, Any]] = []
+    paused_n = 0
+    for row in book.get("recent") or []:
+        mint = str(row.get("coinMint") or "")
+        if not mint or mint in held_now or not _is_pump_mint(mint):
+            continue
+        _mayhem_listed[mint] = time.time()
+        state = mayhem_state_of(mint)
+        if state == "active":
+            active_rows.append(row)
+        elif state == "paused":
+            paused_n += 1
+    held = {str(row.get("coinMint") or "") for row in holding}
+    return {
+        "ok": True,
+        "on": mayhem_on(),
+        "userName": MAYHEM_USER,
+        "wallet": MAYHEM_WALLET,
+        "bookOk": bool(book.get("ok")),
+        "error": book.get("error") or "",
+        "totalValueUsd": book.get("totalValueUsd"),
+        # Pump coins only (mint starts or ends with "pump"), and only coins pump reports "active":
+        # paused coins are hidden, and a coin shows once its first state read is in (~0.5s).
+        "rows": active_rows,
+        "pausedHidden": paused_n,
+        "older": [row for row in (book.get("older") or [])
+                  if str(row.get("coinMint") or "") not in held and _is_pump_mint(row.get("coinMint"))],
+        "holding": holding,
+        "notes": [dict(item) for item in _mayhem_notes[:40]],
+        "bookAge": round(max(0.0, time.time() - float((_hold_cache.get(MAYHEM_WALLET) or {}).get("ts") or 0)), 2),
+        "openMin": MAYHEM_OPEN_S // 60,
+        "hideMin": MAYHEM_HIDE_S // 60,
+        "blocked": [item for item in openhold_blocked() if str(item.get("user") or "").casefold() == MAYHEM_USER.casefold()],
+    }
 
 
 def _picked_cached(name: str, cutoff: float = 0) -> Dict[str, Any]:
@@ -2061,24 +2848,57 @@ def _picked_cached(name: str, cutoff: float = 0) -> Dict[str, Any]:
     who = wallet_for_user(name)
     user = who.get("userName") or str(name or "").strip()
     wallet = who.get("walletAddress") or ""
+    from src.config.runtime import is_mayhem_user
+    kind = "mayhem" if is_mayhem_user(user) else "opencopy"
     if not _useful(wallet):
-        return {"userName": user, "wallet": "", "ok": False, "error": "no wallet stored", "rows": []}
+        return {"userName": user, "wallet": "", "ok": False, "error": "no wallet stored", "rows": [],
+                "holding": _copy_holding(user, kind=kind)}
     book = _book_cached(wallet)
     if not book.get("ok"):
-        return {"userName": user, "wallet": wallet, "ok": False, "error": book.get("error") or "checking", "rows": []}
-    rows = _with_stream(wallet, _hold_rows(book, _tokens_cached(wallet), 0))
+        # A slow caller book must not hide the trade the bot holds.
+        return {"userName": user, "wallet": wallet, "ok": False, "error": book.get("error") or "checking",
+                "rows": [], "holding": _copy_holding(user, kind=kind)}
+    from src.config.runtime import is_mayhem_user
+    # Mayhem_Mode: only the last 3 minutes (and coins the bot holds) are built, priced and streamed.
+    cut = (time.time() - MAYHEM_OPEN_S) if is_mayhem_user(user) else 0
+    rows = _with_stream(wallet, _hold_rows(book, _tokens_cached(wallet), cut))
     now = time.time()
-    hour = 60 * 60
+    # Mayhem_Mode opens several coins a minute: Open existing is the last 3 minutes and Hide
+    # existing 3 to 10 minutes. Other callers keep 15 minutes and 1 hour.
+    open_s, hide_s = (MAYHEM_OPEN_S, MAYHEM_HIDE_S) if is_mayhem_user(user) else (OH_OPEN_WINDOW_S, OH_HIDE_WINDOW_S)
     recent: List[Dict[str, Any]] = []
     older: List[Dict[str, Any]] = []
     live_total = 0.0
     have_live = False
+    bot_open = _bot_open()
+    by_mint = {str(row.get("coinMint") or ""): row for row in rows}
+    # by_mint is the caller's whole open book (held coins included), so a held coin shows the
+    # caller's live row (as pump shows it), not the bot's own numbers marked CALLER OUT.
+    holding: List[Dict[str, Any]] = _copy_holding(user, by_mint, kind=kind)
+    for mint, status in list(_oh_status.items()):
+        # Bought a moment ago: the position manager may not list it yet.
+        if status in ("HOLDING", "BUYING") and mint in by_mint and mint not in bot_open:
+            row = dict(by_mint[mint])
+            row["botStatus"] = status
+            holding.append(row)
+    holding.sort(key=lambda item: float(item.get("openedAt") or 0), reverse=True)
+    sold = _bot_sold_recent()
     for row in rows:
         opened = float(row.get("openedAt") or 0)
-        if opened > 0 and now - opened <= hour:
-            recent.append(row)
+        mint = str(row.get("coinMint") or "")
+        if _bot_holds(mint):
+            pass                        # held: lives in the Holding table until closed
+        elif mint in sold:
+            if opened > 0 and now - opened <= hide_s:
+                row = dict(row)
+                row["botStatus"] = "SOLD"
+                older.append(row)       # sold by the bot: Hide existing until the coin ages out
+        elif opened > 0 and now - opened <= open_s:
+            recent.append(row)          # Open existing: last 15 minutes (Mayhem: 3)
+        elif opened > 0 and now - opened <= hide_s:
+            older.append(row)           # Hide existing: up to 1 hour (Mayhem: 3 to 10 minutes)
         else:
-            older.append(row)
+            continue
         try:
             held = float(row.get("amount_held") or 0)
             px = float(row.get("token_price") or 0)
@@ -2087,7 +2907,7 @@ def _picked_cached(name: str, cutoff: float = 0) -> Dict[str, Any]:
         if held > 0 and px > 0:
             live_total += held * px
             have_live = True
-    # The table they see is the last hour. After that the coin is only in Hide existing.
+    # Open existing is the last 15 minutes. 15 min to 1 hour is Hide existing. Older is dropped.
     # recent stays on the payload so auto-trade still sees a new open while that other list is open.
     return {
         "userName": user,
@@ -2098,6 +2918,7 @@ def _picked_cached(name: str, cutoff: float = 0) -> Dict[str, Any]:
         "rows": recent,
         "recent": recent,
         "older": older,
+        "holding": holding,
     }
 
 
@@ -2145,7 +2966,7 @@ def openhold_room_left() -> int | None:
     return max(0, _oh_room - waiting)
 
 
-def queue_openhold_order(action: str, mint: str, symbol: str = "", name: str = "", user: str = "", wallet: str = "") -> None:
+def queue_openhold_order(action: str, mint: str, symbol: str = "", name: str = "", user: str = "", wallet: str = "", force: bool = False) -> None:
     mint = str(mint or "").strip()
     action = str(action or "").strip().lower()
     if action not in ("buy", "sell") or not mint:
@@ -2158,6 +2979,7 @@ def queue_openhold_order(action: str, mint: str, symbol: str = "", name: str = "
             "name": name or "",
             "userName": user or "",
             "wallet": wallet or "",
+            "force": bool(force),   # CallOuts Buy: a click opens it even while another trade holds the slot
         })
 
 
@@ -2180,7 +3002,13 @@ def openhold_new_coins() -> List[Dict[str, Any]]:
         window = openhold_auto_seconds()
     except Exception:
         window = 60.0
-    snap = open_holds_snapshot()
+    from src.config.runtime import MAYHEM_USER, mayhem_on
+    _start_openholds_refresh()      # Mayhem's own book loop runs even with no page open
+    if mayhem_on():
+        # Mayhem: only Mayhem_Mode. One cached book, no OpenHolds snapshot to build first.
+        snap = {"groups": [], "picked": [_picked_cached(MAYHEM_USER, 0)]}
+    else:
+        snap = open_holds_snapshot()
     books: List[Dict[str, Any]] = []
     for group in snap.get("groups") or []:
         if group.get("ok"):
@@ -2246,11 +3074,12 @@ def openhold_new_coins() -> List[Dict[str, Any]]:
                 continue
             item = dict(row)
             item["auto"] = True
+            item["age"] = max(0.0, now - opened)
             item["userName"] = group.get("userName") or ""
             item["wallet"] = group.get("wallet") or ""
             fresh.append(item)
     fresh.sort(key=lambda row: -float(row.get("openedAt") or 0))
-    return _openhold_allowed(fresh)
+    return _openhold_allowed(fresh, window)
 
 
 def caller_identity(mint: str) -> Dict[str, str]:
@@ -2416,6 +3245,14 @@ def mark_callout(mint: str, state: str) -> None:
     _save_called(force=True)
 
 
+_copy_purged = [False]
+
+
+def _copy_pins_dropped(_mints) -> bool:
+    done, _copy_purged[0] = _copy_purged[0], False
+    return done
+
+
 def sync_callout_pins(positions) -> None:
     """Only a Callout buy is pinned on the Callout page.
 
@@ -2433,11 +3270,15 @@ def sync_callout_pins(positions) -> None:
             continue
         kind = str(getattr(pos, "strategy", "") or "")
         src = str(getattr(pos, "source", "") or "")
-        if kind == "opencopy" or src == "opencopy":
+        copy_trade = kind in ("opencopy", "mayhem") or src in ("opencopy", "mayhem")
+        if not copy_trade and kind != "callout" and src != "callout":
+            continue
+        if copy_trade:
+            # OpenCopy lives on OpenHolds only, in its caller's Holding table (open_holds_snapshot
+            # adds that table even when the caller is not picked). A Callout pin here drew the
+            # same caller twice on OpenHolds and showed the trade on CallOuts.
             copy_mints.add(mint)
             set_openhold_status(mint, "HOLDING")
-            continue
-        if kind != "callout" and src != "callout":
             continue
         open_mints.add(mint)
         held.append(pos)
@@ -2454,11 +3295,13 @@ def sync_callout_pins(positions) -> None:
         set_openhold_status(mint, "HOLDING")
     with _called_lock:
         if copy_mints:
+            before = len(_called)
             _called[:] = [
                 item for item in _called
                 if str(item.get("coinMint") or "") not in copy_mints
                 or item.get("state") not in ("HOLDING", "BUYING")
             ]
+            _copy_purged[0] = before != len(_called)
         pins = {str(item.get("coinMint") or ""): item for item in _called}
         stale = [
             mint for mint, item in pins.items()
@@ -2470,7 +3313,7 @@ def sync_callout_pins(positions) -> None:
     for mint in list(_oh_status):
         if mint not in open_mints and mint not in copy_mints:
             _oh_status.pop(mint, None)
-    if copy_mints:
+    if copy_mints and _copy_pins_dropped(copy_mints):
         _save_called(force=True)
     for pos in held:
         item = pins.get(str(getattr(pos, "mint", "") or ""))
@@ -2528,6 +3371,84 @@ def _overlay_pin(shown: Dict[str, Any], item: Dict[str, Any]) -> None:
         shown["tokenPrice"] = item.get("tokenPrice")
 
 
+_co_blocked: Dict[str, Dict[str, Any]] = {}   # mint -> Callout coin auto-trade is holding back
+_co_blocked_lock = threading.Lock()
+_CO_BLOCK_TTL = 15.0   # a reason not refreshed by the loop for this long is stale
+
+
+def callout_rule(row: Dict[str, Any]) -> str:
+    """Same auto-open rule as OpenCopy. Empty string: passes. Otherwise the reason it does not."""
+    mint = str(row.get("coinMint") or "")
+    low = mint.lower()
+    if not (low.startswith("pump") or low.endswith("pump")):
+        return "not a pump coin"
+    import time as _t
+    opened = float(row.get("openedAt") or 0)
+    if opened <= 0 or _t.time() - opened > CO_SHOW_WINDOW_S:
+        return "opened more than 5 minutes ago"
+    try:
+        from src.config.runtime import openhold_range
+        max_pct, max_usd = openhold_range()
+    except Exception:
+        max_pct, max_usd = 5.0, 100.0
+    try:
+        unreal = float(row.get("unrealizedUsd"))
+        raw_pct = row.get("percentageUsd") if row.get("percentageUsd") is not None else row.get("percentage")
+        pct = float(raw_pct)
+    except (TypeError, ValueError):
+        return "no PnL from pump yet"
+    if unreal < 0:
+        return f"unrealized -${abs(unreal):,.2f} is below $0"
+    if unreal > max_usd:
+        return f"unrealized +${unreal:,.2f} is above ${max_usd:,.2f}"
+    if not 0 < pct <= max_pct:
+        return f"percentage {pct:+.2f}% is outside 0% to +{max_pct:g}%"
+    return ""
+
+
+def note_callout_block(row: Dict[str, Any], why: str, kind: str = "rule") -> bool:
+    """Record why a Callout coin is not opening. True when the reason is new (worth a toast)."""
+    import time
+    mint = str(row.get("coinMint") or "")
+    if not mint:
+        return False
+    pct = row.get("percentageUsd") if row.get("percentageUsd") is not None else row.get("percentage")
+    with _co_blocked_lock:
+        prev = _co_blocked.get(mint) or {}
+        _co_blocked[mint] = {
+            "mint": mint,
+            "symbol": row.get("symbol") or prev.get("symbol") or mint[:6],
+            "name": row.get("coinName") or prev.get("name") or "",
+            "user": row.get("userName") or prev.get("user") or "",
+            "wallet": row.get("walletAddress") or prev.get("wallet") or "",
+            "why": why,
+            "kind": kind,
+            "unrealized_usd": row.get("unrealizedUsd"),
+            "percentage": pct,
+            "first": prev.get("first") or time.time(),
+            "seen": time.time(),
+        }
+    return prev.get("why") != why
+
+
+def clear_callout_block(mint: str) -> None:
+    with _co_blocked_lock:
+        _co_blocked.pop(str(mint or ""), None)
+
+
+def callout_blocked() -> List[Dict[str, Any]]:
+    """Callout coins auto-trade is holding back right now, newest first."""
+    import time
+    now = time.time()
+    with _co_blocked_lock:
+        for mint in list(_co_blocked):
+            if now - float(_co_blocked[mint].get("seen") or 0) > _CO_BLOCK_TTL or _bot_holds(mint):
+                _co_blocked.pop(mint, None)
+        out = [dict(item) for item in _co_blocked.values()]
+    out.sort(key=lambda item: -float(item.get("first") or 0))
+    return out
+
+
 def _callout_page_rows() -> tuple:
     """Live CallOuts, with coins this bot bought kept at the front."""
     _start_pin_live()
@@ -2565,9 +3486,25 @@ def _callout_page_rows() -> tuple:
                 shown["callReason"] = item.get("callReason")
         pinned.append(shown)
     seen = {item.get("coinMint") for item in pinned}
-    page = pinned + [row for row in rows if row.get("coinMint") not in seen]
-    remember_callers(page)
-    return page, err
+    remember_callers(pinned + rows)
+    # Only calls opened in the last 5 minutes are shown. Pinned / HOLDING rows stay whatever their age.
+    now = __import__("time").time()
+    recent = [
+        row for row in rows
+        if row.get("coinMint") not in seen
+        and float(row.get("openedAt") or 0) > 0
+        and now - float(row.get("openedAt") or 0) <= CO_SHOW_WINDOW_S
+    ]
+    page = pinned + recent
+    out = [dict(_co_live(row)) for row in page]   # copies: the cached rows must not keep a bot %
+    bot = _bot_open()
+    for row in out:
+        pos = bot.get(str(row.get("coinMint") or ""))
+        if pos:
+            # The bot's own trade on this coin, live: SOL value now vs SOL paid.
+            row["botPct"] = pos.get("sol_paid_pct") if pos.get("sol_paid_pct") is not None else pos.get("pnl_pct")
+            row["botPnlSol"] = pos.get("pnl_sol")
+    return out, err
 
 
 def _apply_hold(item: Dict[str, Any], hold: Dict[str, Any]) -> None:
@@ -2985,9 +3922,49 @@ async def _ws_handler(websocket: WebSocketServerProtocol) -> None:
         log.info("Dashboard client disconnected (%d total)", bus.client_count)
 
 
-async def start_ws_server(host: str = "0.0.0.0", port: int = DEFAULT_WS_PORT) -> None:
+# The dashboard can sell, change settings and swap the wallet, and it has no password.
+# It listens on this PC only. SOL_SNIPER_UI_HOST=0.0.0.0 opens it to the network (not advised);
+# SOL_SNIPER_UI_ALLOW=name1,name2 adds host names a browser may use to reach it.
+UI_HOST = (os.environ.get("SOL_SNIPER_UI_HOST") or "127.0.0.1").strip()
+_UI_NAMES = {"localhost", "127.0.0.1", "::1", "[::1]"} | {
+    n.strip().lower() for n in (os.environ.get("SOL_SNIPER_UI_ALLOW") or "").split(",") if n.strip()
+}
+
+
+def _ui_name(value: str) -> str:
+    """Host name of a Host header or an Origin URL, without scheme or port."""
+    from urllib.parse import urlsplit
+    value = (value or "").strip().lower()
+    if not value:
+        return ""
+    if "://" in value:
+        return (urlsplit(value).hostname or "").lower()
+    if value.startswith("["):
+        return value.split("]", 1)[0] + "]"
+    return value.rsplit(":", 1)[0] if value.count(":") == 1 else value
+
+
+def ui_request_ok(host_header: str, origin: str) -> bool:
+    """Only this PC's own page. Blocks other websites in your browser and DNS-rebinding tricks."""
+    if _ui_name(host_header) not in _UI_NAMES:
+        return False
+    if origin and _ui_name(origin) not in _UI_NAMES:   # "null" (sandboxed page) is refused too
+        return False
+    return True
+
+
+async def start_ws_server(host: str = "", port: int = DEFAULT_WS_PORT) -> None:
+    host = host or UI_HOST
     bus._loop = asyncio.get_running_loop()
-    async with websockets.serve(_ws_handler, host, port, ping_interval=20, ping_timeout=20):
+
+    def _check(connection, request):
+        headers = request.headers
+        if not ui_request_ok(headers.get("Host", ""), headers.get("Origin", "")):
+            log.warning("Dashboard socket refused: host=%s origin=%s", headers.get("Host", "")[:60], headers.get("Origin", "")[:60])
+            return connection.respond(403, "Forbidden\n")
+        return None
+
+    async with websockets.serve(_ws_handler, host, port, ping_interval=20, ping_timeout=20, process_request=_check):
         log.info("Dashboard WebSocket listening on ws://%s:%d", host, port)
         await asyncio.Future()
 
@@ -3041,11 +4018,23 @@ def start_http_static_server(port: int = DEFAULT_HTTP_PORT) -> ThreadingHTTPServ
             except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, TimeoutError, OSError):
                 return
 
+        def _refuse(self) -> bool:
+            if ui_request_ok(self.headers.get("Host", ""), self.headers.get("Origin", "")):
+                return False
+            log.warning("Dashboard request refused: host=%s origin=%s path=%s",
+                        (self.headers.get("Host") or "")[:60], (self.headers.get("Origin") or "")[:60], self.path[:60])
+            self._json(403, {"ok": False, "error": "forbidden"})
+            return True
+
         def do_GET(self):
+            if self._refuse():
+                return
             path = self.path.split("?", 1)[0]
             if path == "/api/callouts":
                 rows, err = _callout_page_rows()
-                self._json(200, {"ok": not err, "rows": rows, "error": err, "count": len(rows)})
+                shown = {row.get("coinMint") for row in rows}
+                blocked = [item for item in callout_blocked() if item.get("mint") in shown]
+                self._json(200, {"ok": not err, "rows": rows, "error": err, "count": len(rows), "blocked": blocked})
                 return
             if path == "/api/open-holds":
                 from urllib.parse import parse_qs
@@ -3060,6 +4049,18 @@ def start_http_static_server(port: int = DEFAULT_HTTP_PORT) -> ThreadingHTTPServ
                     flag = (query.get("all") or ["0"])[0]
                     user = (query.get("user") or [""])[0]
                     set_openholds_existing(flag not in ("0", "false", "off"), user)
+                acted = any(k in query for k in ("clear", "drop", "pick", "all"))
+                if acted and "dir" not in query:
+                    # Answer with the new state, not the snapshot from before the click.
+                    global _oh_snap_raw
+                    try:
+                        fresh = json.dumps(open_holds_snapshot(), separators=(",", ":")).encode("utf-8")
+                        with _oh_snap_lock:
+                            _oh_snap_raw = fresh
+                        self._raw(200, fresh)
+                        return
+                    except Exception:
+                        log.debug("open-holds action snapshot failed", exc_info=True)
                 if "dir" in query:
                     self._json(200, {"ok": True, "callers": caller_directory(), "watch": openholds_watch()})
                     return
@@ -3069,6 +4070,9 @@ def start_http_static_server(port: int = DEFAULT_HTTP_PORT) -> ThreadingHTTPServ
                     self._raw(200, raw)
                     return
                 self._json(200, {"ok": True, "groups": [], "picked": [], "watch": openholds_watch(), "callers": []})
+                return
+            if path == "/api/mayhem":
+                self._json(200, mayhem_snapshot())
                 return
             if path == "/api/predict":
                 rows, err = _predict_rows()
@@ -3086,6 +4090,8 @@ def start_http_static_server(port: int = DEFAULT_HTTP_PORT) -> ThreadingHTTPServ
             return super().do_GET()
 
         def do_POST(self):
+            if self._refuse():
+                return
             path = self.path.split("?", 1)[0]
             if path == "/api/restart":
                 if not _http_restart:
@@ -3128,7 +4134,8 @@ def start_http_static_server(port: int = DEFAULT_HTTP_PORT) -> ThreadingHTTPServ
                 if action not in ("buy", "sell") or not mint:
                     self._json(400, {"ok": False, "error": "Need buy or sell, and a coin"})
                     return
-                if action == "buy":
+                force = bool((body or {}).get("force"))
+                if action == "buy" and not force:
                     left = openhold_room_left()
                     if left is not None and left <= 0:
                         self._json(200, {"ok": False, "error": "No free slot"})
@@ -3140,6 +4147,7 @@ def start_http_static_server(port: int = DEFAULT_HTTP_PORT) -> ThreadingHTTPServ
                     str((body or {}).get("name") or ""),
                     str((body or {}).get("user") or ""),
                     str((body or {}).get("wallet") or ""),
+                    force=force,
                 )
                 self._json(200, {"ok": True, "queued": action})
                 return
@@ -3160,8 +4168,11 @@ def start_http_static_server(port: int = DEFAULT_HTTP_PORT) -> ThreadingHTTPServ
                     self._json(503, {"ok": False, "error": "Sell is not ready yet"})
                     return
                 mint = str((body or {}).get("mint") or "").strip()
+                # The card's Sell sends force=true: sell this coin now, UserHolds live or not.
+                # Only the −1 button (force=false) waits for UserHolds OUT.
+                force = (body or {}).get("force") is True
                 try:
-                    fut = _http_sell(mint)
+                    fut = _http_sell(mint, force) if mint else _http_sell(mint)
                     result = fut.result(timeout=90) if hasattr(fut, "result") else fut
                 except Exception as e:
                     self._json(500, {"ok": False, "error": str(e)[:180]})
@@ -3269,7 +4280,7 @@ def start_http_static_server(port: int = DEFAULT_HTTP_PORT) -> ThreadingHTTPServ
                     log.exception("wallet arm notify failed")
             self._json(200, {"ok": True, "pubkey": pub, "armed": True})
 
-    server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
+    server = ThreadingHTTPServer((UI_HOST, port), Handler)
     t = threading.Thread(target=server.serve_forever, daemon=True)
     t.start()
     log.info("Dashboard UI available at http://localhost:%d/", port)
@@ -3536,6 +4547,10 @@ async def publish_alert(
     source: Optional[str] = None,
     signature: Optional[str] = None,
 ) -> None:
+    if str(title or "").strip().lower() == "mayhem":
+        # Mayhem notices are not toasts: they go to the Messages box on the MayhemMode page.
+        mayhem_note(level, message, mint)
+        return
     await bus.publish(
         {
             "type": "alert",
@@ -3571,7 +4586,27 @@ async def publish_positions(snapshot: Dict[str, Any]) -> None:
     except Exception:
         log.debug("live pnl update failed", exc_info=True)
         board = {}
-    await bus.publish({"type": "positions", "snapshot": snapshot, "pnl": board or dict(bus._stats)})
+    # The server's copy is current at once (OpenHolds and the bot read it). The page gets at most 4
+    # a second: the newest one, never a queue of old ones.
+    bus._positions = snapshot
+    _pos_out["msg"] = {"type": "positions", "snapshot": snapshot, "pnl": board or dict(bus._stats)}
+    if _pos_out.get("task") is None or _pos_out["task"].done():
+        _pos_out["task"] = asyncio.get_running_loop().create_task(_pos_flush())
+
+
+_pos_out: Dict[str, Any] = {"msg": None, "task": None, "at": 0.0}
+_POS_EVERY_S = 0.25
+
+
+async def _pos_flush() -> None:
+    import time
+    wait = _POS_EVERY_S - (time.time() - float(_pos_out.get("at") or 0))
+    if wait > 0:
+        await asyncio.sleep(wait)
+    msg, _pos_out["msg"] = _pos_out.get("msg"), None
+    if msg is not None:
+        _pos_out["at"] = time.time()
+        await bus.publish(msg)
 
 
 async def publish_trade(trade: Dict[str, Any]) -> None:
@@ -3675,7 +4710,20 @@ def live_caller_name(mint: str, source: str = "", preferred: str = "") -> str:
 
 
 def openhold_waiting() -> List[Dict[str, Any]]:
-    return []
+    """Coins inside the auto-open window that auto-trade is holding back, with the reason.
+    main.py toasts each one (again every 20s while it waits)."""
+    out = []
+    for item in openhold_blocked():
+        row = dict(item)
+        row["coinMint"] = item.get("mint")
+        out.append(row)
+    return out
+
+
+def openhold_no_room(rows: List[Dict[str, Any]], open_now: int, window: float) -> None:
+    """New opens that pass the rule but every trade slot is taken: list them with that reason."""
+    for row in rows or []:
+        _openhold_block(row, f"no free trade slot ({open_now} open)", window)
 
 
 def reconcile_openhold_status(rows) -> None:
@@ -3687,7 +4735,7 @@ def reconcile_openhold_status(rows) -> None:
         if not mint:
             continue
         source = str(row.get("source") or row.get("strategy") or "")
-        if source in ("callout", "opencopy") or row.get("from_openholds"):
+        if source in ("callout", "opencopy", "mayhem") or row.get("from_openholds"):
             if openhold_status(mint) not in ("BUYING", "HOLDING"):
                 set_openhold_status(mint, "HOLDING")
 
@@ -3733,7 +4781,7 @@ def refresh_copy_holds(rows) -> None:
         mint = str(row.get("mint") or "")
         wallet = str(row.get("wallet") or "")
         book = books.get(wallet) or {}
-        if not book.get("ok"):
+        if not book.get("ok") or mint in (book.get("unsure") or ()):
             seen = _stream_hold(wallet, mint, "")
             if seen:
                 _hold_by_mint[mint] = seen
@@ -3760,7 +4808,10 @@ def _best_px(mint: str):
         src = _oh_px_src.get(mint, "")
     read = None
     if price:
-        if src == "pool":
+        if src == "launchlab":
+            factor = _px_factor(mint)         # pump's own price checked against the curve; 1.0 normally
+            read = price * (factor if factor is not None else 1.0)
+        elif src == "pool":
             factor = _jup_factor(mint)        # Jupiter = pump's price for graduated coins
             if factor is None:
                 factor = _px_factor(mint)     # pump's own price, checked against the pool
@@ -3780,23 +4831,83 @@ def _best_px(mint: str):
     return None, 0.0    # nothing matched yet: the row keeps pump's own numbers
 
 
-def _openhold_allowed(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Auto-open: mint starts or ends with pump, unrealized above 0, and percent above 0 up to 5."""
+_oh_blocked: Dict[str, Dict[str, Any]] = {}   # mint -> auto-open attempt the rule stopped
+_oh_blocked_lock = threading.Lock()
+
+
+def _openhold_block(row: Dict[str, Any], why: str, window: float) -> None:
+    import time
+    mint = str(row.get("coinMint") or "")
+    if not mint:
+        return
+    opened = _num(row.get("openedAt")) or time.time()
+    with _oh_blocked_lock:
+        prev = _oh_blocked.get(mint) or {}
+        _oh_blocked[mint] = {
+            "mint": mint,
+            "symbol": row.get("symbol") or prev.get("symbol") or mint[:6],
+            "name": row.get("name") or prev.get("name") or "",
+            "user": row.get("userName") or prev.get("user") or "",
+            "why": why,
+            "unrealized_usd": row.get("unrealized_usd"),
+            "percentage": row.get("percentage_usd") if row.get("percentage_usd") is not None else row.get("percentage"),
+            "first": prev.get("first") or time.time(),
+            "until": opened + window,
+        }
+
+
+def openhold_blocked() -> List[Dict[str, Any]]:
+    """Auto-open attempts the rule is holding back, until each coin's auto window ends.
+    A coin the bot opens (BUYING / HOLDING) leaves the list at once."""
+    import time
+    now = time.time()
+    with _oh_blocked_lock:
+        for mint in list(_oh_blocked):
+            item = _oh_blocked[mint]
+            if now >= float(item.get("until") or 0) or _oh_status.get(mint) in ("BUYING", "HOLDING"):
+                _oh_blocked.pop(mint, None)
+        out = [dict(item, left=max(0.0, float(item["until"]) - now)) for item in _oh_blocked.values()]
+    out.sort(key=lambda item: -float(item.get("first") or 0))
+    return out
+
+
+def _openhold_allowed(rows: List[Dict[str, Any]], window: float = 60.0) -> List[Dict[str, Any]]:
+    """Auto-open: mint starts or ends with pump, unrealized $0.00 up to the Settings top (default $100),
+    and percent above 0% up to the Settings top (default 5%).
+    A coin held back here is listed by openhold_blocked() until its auto window ends."""
+    try:
+        from src.config.runtime import openhold_range
+        max_pct, max_usd = openhold_range()
+    except Exception:
+        max_pct, max_usd = 5.0, 100.0
     kept: List[Dict[str, Any]] = []
     for row in rows or []:
         mint = str(row.get("coinMint") or "")
         low = mint.lower()
         if not (low.startswith("pump") or low.endswith("pump")):
+            _openhold_block(row, "not a pump coin", window)
             continue
         if row.get("transfer") and not _caller_bought(str(row.get("wallet") or ""), mint):
-            continue   # sent to the caller, not bought by them: never auto-copied
+            _openhold_block(row, "sent to the caller, not bought", window)   # never auto-copied
+            continue
         try:
             unreal = float(row.get("unrealized_usd"))
             pct = float(row.get("percentage_usd") if row.get("percentage_usd") is not None else row.get("percentage"))
         except (TypeError, ValueError):
+            _openhold_block(row, "no PnL from pump yet", window)
             continue
-        if unreal > 0 and 0 < pct <= 5:
-            kept.append(row)
+        if unreal < 0:
+            _openhold_block(row, f"unrealized -${abs(unreal):,.2f} is below $0", window)
+            continue
+        if unreal > max_usd:
+            _openhold_block(row, f"unrealized +${unreal:,.2f} is above ${max_usd:,.2f}", window)
+            continue
+        if not 0 < pct <= max_pct:
+            _openhold_block(row, f"percentage {pct:+.2f}% is outside 0% to +{max_pct:g}%", window)
+            continue
+        with _oh_blocked_lock:
+            _oh_blocked.pop(mint, None)   # passes now: the buy goes ahead
+        kept.append(row)
     return kept
 
 
@@ -3827,6 +4938,16 @@ def _oh_sol_usd() -> float:
     import time
     from src.execution.tx_route import sync_https
     now = time.time()
+    try:
+        # pump's own SOL rate first, so USD figures land on pump's numbers. Coinbase if it misses.
+        body = _pump_json("https://frontend-api-v3.pump.fun/sol-price", timeout=1.0)
+        amt = float((body or {}).get("solPrice") or 0) if isinstance(body, dict) else 0.0
+        if amt > 10 and not (body or {}).get("stale"):
+            _oh_sol["usd"] = amt
+            _oh_sol["ts"] = now
+            return amt
+    except Exception:
+        log.debug("pump sol price failed", exc_info=True)
     try:
         status, text = sync_https("GET", "https://api.coinbase.com/v2/prices/SOL-USD/spot", timeout=0.8)
         if status == 200:
@@ -3934,8 +5055,12 @@ def _oh_accounts(keys):
     for url in ("https://api.mainnet-beta.solana.com", "https://solana-rpc.publicnode.com"):
         if _oh_rpc_cool.get(url, 0.0) <= now:
             tries.append((url, 0.35, True))
-    primary = (os.environ.get("SOLANA_RPC_URL") or "").strip()
-    if primary.startswith("http") and "mainnet-beta.solana.com" not in primary:
+    try:
+        from src.execution.wallet_tokens import primary_url
+        primary = primary_url()
+    except Exception:
+        primary = (os.environ.get("SOLANA_RPC_URL") or "").strip()
+    if primary.startswith("http") and "mainnet-beta.solana.com" not in primary and "publicnode.com" not in primary:
         if now - _oh_rpc_cool.get("_primary_last", 0.0) >= _OH_PRIMARY_GAP:
             tries.append((primary, 0.8, False))
     for url, wait, public in tries:
@@ -3958,6 +5083,8 @@ def _oh_accounts(keys):
 
 
 _oh_rpc_cool: Dict[str, float] = {}
+_LAUNCHLAB = "LanMV9sAd7wArD4vJFi2qDdfnVhFxYSUg6eADduJ3uj"   # Raydium LaunchLab (pump lists these too)
+_oh_nonpump: Set[str] = set()   # listed coins with no pump curve and no LaunchLab curve: Jupiter prices them
 _OH_READ_MINTS = 48   # one getMultipleAccounts call: 2 accounts per coin
 _OH_PRIMARY_GAP = 0.5   # at most 2 price reads a second on the paid RPC
 
@@ -3978,6 +5105,8 @@ def _oh_raw(item) -> bytes:
 def _oh_listed_mints() -> List[str]:
     """Open coins on the callers' books, most active first: coins this bot holds, then the most
     recently traded or opened. Dead coins go last so they never crowd out a moving one."""
+    import time
+    now = time.time()
     seen: Dict[str, str] = {}
     with _hold_lock:
         books = list(_hold_cache.values())
@@ -3987,13 +5116,18 @@ def _oh_listed_mints() -> List[str]:
         for pos in book.get("positions") or []:
             if not isinstance(pos, dict) or pos.get("isExited"):
                 continue
+            if not _oh_in_window(pos, now) or _oh_junk(pos):
+                continue   # not shown, so not priced or streamed
             mint = str(pos.get("coinMint") or "")
             if not mint or len(mint) < 32 or mint.startswith("0x"):
                 continue
             stamp = str(pos.get("updatedAt") or pos.get("openedAt") or "")
             if stamp > seen.get(mint, ""):
                 seen[mint] = stamp
-    held = {m for m, st in list(_oh_status.items()) if st in ("HOLDING", "BUYING")}
+    held = {m for m, st in list(_oh_status.items()) if st in ("HOLDING", "BUYING")} | set(_bot_open())
+    for mint in held:
+        if len(mint) >= 32 and not mint.startswith("0x"):
+            seen.setdefault(mint, "9999")   # held coins are always priced, even if the caller sold
     ranked = sorted(seen, key=lambda m: seen[m], reverse=True)   # latest ISO time first
     ranked.sort(key=lambda m: m not in held)                    # stable: held coins on top
     return ranked[:150]
@@ -4026,16 +5160,71 @@ def _oh_pool_lookup(mint: str) -> None:
     threading.Thread(target=_run, name="oh-pool", daemon=True).start()
 
 
+_DLMM = "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo"     # Meteora DLMM
+_CPMM = "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C"     # Raydium CPMM
+_oh_dex_pool: Dict[str, tuple] = {}     # mint -> ("dlmm", pool, flip) | ("cpmm", vault_token, vault_sol)
+_oh_dex_asked: Dict[str, float] = {}
+
+
+def _oh_dex_lookup(mint: str) -> None:
+    """Graduated non-pump coin: find its deepest SOL pool we can read (Meteora DLMM or Raydium CPMM).
+    Read every 0.2s like a pump pool, so the row moves with each trade instead of Jupiter's few seconds."""
+    import time
+    now = time.time()
+    if mint in _oh_dex_pool or now - _oh_dex_asked.get(mint, 0.0) < 120:
+        return
+    _oh_dex_asked[mint] = now
+
+    def _run() -> None:
+        import base64
+        try:
+            from solders.pubkey import Pubkey
+            from src.execution.tx_route import sync_https
+            status, text = sync_https("GET", f"https://api.dexscreener.com/latest/dex/tokens/{mint}", timeout=4.0)
+            pairs = (json.loads(text or "{}") or {}).get("pairs") or [] if status == 200 else []
+            cands = []
+            for pair in pairs:
+                quote = ((pair.get("quoteToken") or {}).get("address") or "")
+                base = ((pair.get("baseToken") or {}).get("address") or "")
+                if _WSOL_MINT not in (quote, base) or mint not in (quote, base):
+                    continue
+                liq = float((pair.get("liquidity") or {}).get("usd") or 0)
+                cands.append((liq, str(pair.get("pairAddress") or "")))
+            cands.sort(reverse=True)
+            for liq, addr in cands[:4]:
+                values = _oh_accounts([addr])
+                if not isinstance(values, list) or not values or not isinstance(values[0], dict):
+                    continue
+                owner = str(values[0].get("owner") or "")
+                raw = _oh_raw(values[0])
+                if owner == _DLMM and len(raw) >= 152:
+                    x = str(Pubkey.from_bytes(raw[88:120]))
+                    y = str(Pubkey.from_bytes(raw[120:152]))
+                    if {x, y} == {mint, _WSOL_MINT}:
+                        _oh_dex_pool[mint] = ("dlmm", addr, x != mint)
+                        log.info("POOL %s Meteora DLMM %s liq $%.0f", mint[:8], addr[:8], liq)
+                        return
+                if owner == _CPMM and len(raw) >= 232:
+                    v0, v1, m0, m1 = [str(Pubkey.from_bytes(raw[a:a + 32])) for a in (72, 104, 168, 200)]
+                    if {m0, m1} == {mint, _WSOL_MINT}:
+                        vt, vs = (v0, v1) if m0 == mint else (v1, v0)
+                        _oh_dex_pool[mint] = ("cpmm", vt, vs)
+                        log.info("POOL %s Raydium CPMM %s liq $%.0f", mint[:8], addr[:8], liq)
+                        return
+        except Exception:
+            log.debug("dex pool lookup failed %s", mint[:8], exc_info=True)
+
+    threading.Thread(target=_run, name="oh-dex-pool", daemon=True).start()
+
+
 def _jup_prices(mints: List[str]) -> Dict[str, float]:
     import json
     import os
     from src.execution.tx_route import sync_https
     key = (os.environ.get("JUPITER_API_KEY") or "").strip()
     ids = ",".join(mints[:50])
-    tries = []
-    if key:
-        tries.append((f"https://api.jup.ag/price/v3?ids={ids}", {"x-api-key": key}))
-    tries.append((f"https://lite-api.jup.ag/price/v3?ids={ids}", {}))
+    # Price polls use the keyless host only: the API key's rate limit is kept for buys and sells.
+    tries = [(f"https://lite-api.jup.ag/price/v3?ids={ids}", {})]
     for url, headers in tries:
         try:
             status, text = sync_https("GET", url, timeout=1.5, headers=headers)
@@ -4066,17 +5255,33 @@ def _jup_loop() -> None:
     while True:
         time.sleep(pause)
         try:
+            try:
+                from src.execution.jupiter import trade_busy
+                if trade_busy():
+                    pause = 1.0
+                    continue   # a buy or sell is quoting Jupiter: do not spend its rate limit
+            except Exception:
+                pass
             listed = _oh_listed_mints()
             with _oh_px_lock:
-                pools = [m for m in listed if _oh_px_src.get(m) == "pool" or m in _oh_pool_addr]
+                pools = [m for m in listed if _oh_px_src.get(m) == "pool" or m in _oh_pool_addr or m in _oh_nonpump]
             if not pools:
                 pause = 1.0
                 continue
+            try:
+                from src.execution.jupiter import bg_quiet, bg_rate_limited
+                if not bg_quiet():
+                    pause = 2.0
+                    continue   # Jupiter is rate-limiting background calls: wait it out
+            except Exception:
+                bg_rate_limited = None
             got = _jup_prices(pools[:50])
             if not got:
-                pause = min(5.0, pause * 1.5)   # rate-limited: ease off
+                if bg_rate_limited:
+                    bg_rate_limited(15.0)
+                pause = 5.0   # rate-limited: ease off
                 continue
-            pause = 1.0
+            pause = 6.0   # live pool reads move the row; Jupiter only keeps their scale honest
             now = time.time()
             for mint, usd in got.items():
                 _jup_px[mint] = (usd, now)
@@ -4127,6 +5332,22 @@ def _oh_spot_once() -> None:
             mint_pk = Pubkey.from_string(mint)
         except Exception:
             continue
+        dex = _oh_dex_pool.get(mint) if not mint.endswith("pump") else None
+        if dex:
+            if dex[0] == "dlmm":
+                keys.append(dex[1])
+                slots.append((mint, "dlmm"))
+            else:
+                keys.extend((dex[1], dex[2]))
+                slots.append((mint, "cpmm_t"))
+                slots.append((mint, "cpmm_s"))
+            continue
+        if not mint.endswith("pump") and mint not in _oh_amm:
+            # Not a pump.fun coin (e.g. Raydium LaunchLab "...bonk"/"...oat"): read its curve pool.
+            ll = Pubkey.find_program_address([b"pool", bytes(mint_pk), bytes(wsol)], Pubkey.from_string(_LAUNCHLAB))[0]
+            keys.append(str(ll))
+            slots.append((mint, "launchlab"))
+            continue
         if mint not in _oh_amm:
             curve = Pubkey.find_program_address([b"bonding-curve", bytes(mint_pk)], program)[0]
             keys.append(str(curve))
@@ -4161,15 +5382,56 @@ def _oh_spot_once() -> None:
     now = time.time()
     for mint in mints:
         got = parts.get(mint) or {}
+        if "dlmm" in got or "cpmm_t" in got:
+            price_sol = 0.0
+            raw = got.get("dlmm") or b""
+            if len(raw) >= 82:
+                active = struct.unpack_from("<i", raw, 76)[0]
+                step = struct.unpack_from("<H", raw, 80)[0]
+                ratio = (1 + step / 10000) ** active          # y per x, raw units
+                flip = bool((_oh_dex_pool.get(mint) or ("", "", False))[2])
+                if ratio > 0:
+                    per_raw = (1 / ratio) if flip else ratio   # SOL raw per token raw
+                    price_sol = per_raw * 1_000_000 / 1_000_000_000
+            t_raw, s_raw = got.get("cpmm_t") or b"", got.get("cpmm_s") or b""
+            if len(t_raw) >= 72 and len(s_raw) >= 72:
+                tok = struct.unpack_from("<Q", t_raw, 64)[0]
+                lam = struct.unpack_from("<Q", s_raw, 64)[0]
+                if tok > 0 and lam > 0:
+                    price_sol = (lam / 1_000_000_000) / (tok / 1_000_000)
+            if price_sol > 0:
+                fresh[mint] = price_sol * sol
+                kinds[mint] = "pool"      # scaled to Jupiter like a graduated pump coin
+            continue
+        if "launchlab" in got:
+            ll_raw = got.get("launchlab") or b""
+            price_usd = 0.0
+            if len(ll_raw) >= 69 and ll_raw[17] == 0:   # status 0: still trading on the curve
+                base_dec = ll_raw[18] or 6
+                vb, vq, rb, rq = struct.unpack_from("<QQQQ", ll_raw, 37)
+                if vb > rb and vq + rq > 0:
+                    price_usd = ((vq + rq) / 1_000_000_000) / ((vb - rb) / (10 ** base_dec)) * sol
+            if price_usd > 0:
+                fresh[mint] = price_usd
+                kinds[mint] = "launchlab"
+                _oh_nonpump.discard(mint)
+            else:
+                _oh_nonpump.add(mint)   # migrated or not LaunchLab: Jupiter's price
+                _oh_dex_lookup(mint)    # and find its DEX pool for a live read
+            continue
         curve_raw = got.get("curve") or b""
         on_curve = False
+        note_curve_quote(mint, curve_raw)
+        q_ratio = quote_ratio(mint)
+        if q_ratio is None:
+            continue   # quote coin's rate not known yet: keep pump's own price
         if len(curve_raw) >= 49 and curve_raw[48] == 0:
             virtual_token = struct.unpack_from("<Q", curve_raw, 8)[0]
             virtual_sol = struct.unpack_from("<Q", curve_raw, 16)[0]
             # A standard pump curve never has under 30 virtual SOL. Below that the coin is a
             # non-SOL / custom curve that pump prices differently, so keep pump's own price.
             if virtual_token > 0 and virtual_sol >= _MIN_VSOL_LAMPORTS:
-                price_usd = ((virtual_sol / 1_000_000_000) / (virtual_token / 1_000_000)) * sol
+                price_usd = ((virtual_sol / 1_000_000_000) / (virtual_token / 1_000_000)) * q_ratio * sol
                 if price_usd > 0:
                     fresh[mint] = price_usd
                     kinds[mint] = "curve"
@@ -4284,17 +5546,37 @@ def _apply_live_row(row: Dict[str, Any], pos: Dict[str, Any]) -> None:
     mint = str((row or {}).get("coinMint") or "")
     if not mint:
         return
-    price, at = _best_px(mint)
-    if not price or price <= 0:
-        return
-    row["token_price"] = price
-    row["px_at"] = at
+    p0 = pos or {}
 
     def _num(value):
         try:
             return float(value)
         except (TypeError, ValueError):
             return None
+    if p0 and p0.get("tokenPriceUsd") is None and p0.get("valueUsd") is None:
+        # pump gives this position no price or value (Mayhem-mode coins: the caller holds ~all of the
+        # supply). pump's PnL there is not held x price; a live re-price gave +117,300% where pump
+        # shows +79%. Show pump's own PnL and percent (read every second); only the price is live.
+        # Replaying socket trades on top was tried: pump's updatedAt does not mark which trades it
+        # already counted, so it double-counted (ANSEMBOT +$1,160 vs pump +$720).
+        row["pumpUnpriced"] = True
+        pnl0 = _num(p0.get("pnlUsd"))
+        pct0 = _num(p0.get("pnlPercentage"))
+        cost0 = _num(p0.get("costBasisUsd"))
+        if pnl0 is not None:
+            row["unrealized_usd"] = pnl0
+        if pct0 is not None:
+            row["percentage_usd"] = pct0
+            row["percentage"] = pct0
+        if cost0 is not None:
+            row["cost_basis_usd"] = cost0
+    price, at = _best_px(mint)
+    if not price or price <= 0:
+        return
+    row["token_price"] = price
+    row["px_at"] = at
+    if row.get("pumpUnpriced"):
+        return
 
     held = _num((pos or {}).get("amountHeld"))
     if held is None or held <= 0:
@@ -4311,7 +5593,14 @@ def _apply_live_row(row: Dict[str, Any], pos: Dict[str, Any]) -> None:
     if held is None or held <= 0 or cost is None or cost <= 0:
         return
     pnl = held * price - cost + realized
-    basis = bought if bought and bought > 0 else cost
+    p = pos or {}
+    basis = _pct_basis(
+        bought,
+        p.get("receiptBasisUsd") if p.get("receiptBasisUsd") is not None else row.get("receipt_basis_usd"),
+        p.get("pnlUsd") if p.get("pnlUsd") is not None else row.get("pump_pnl_usd"),
+        p.get("pnlPercentage") if p.get("pnlPercentage") is not None else row.get("pump_pnl_pct"),
+        cost,
+    ) or cost
     pct = pnl / basis * 100.0
     row["unrealized_usd"] = pnl
     row["percentage_usd"] = pct

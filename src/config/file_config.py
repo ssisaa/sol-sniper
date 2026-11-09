@@ -110,7 +110,11 @@ def apply_config_file(path: Optional[str] = None) -> Dict[str, Any]:
     if rpc.get("primary"):
         os.environ["SOLANA_RPC_URL"] = str(rpc.get("primary")).strip()
         host = str(rpc.get("primary")).split("//")[-1].split("/")[0].split("?")[0]
-        log.info("BUY/SELL RPC is the paid primary %s — public RPCs are for scans only", host)
+        chain = [str(u).split("//")[-1].split("/")[0].split("?")[0] for u in (rpc.get("paid") or [])]
+        if chain:
+            log.info("BUY/SELL RPC chain %s, then public — public RPCs are for scans only", " > ".join(chain))
+        else:
+            log.info("BUY/SELL RPC is the paid primary %s — public RPCs are for scans only", host)
     urls = rpc.get("urls") or []
     if urls and not os.environ.get("SOLANA_RPC_URL"):
         _set_env_if_empty("SOLANA_RPC_URL", urls[0])

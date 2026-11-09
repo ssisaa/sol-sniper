@@ -16,7 +16,26 @@ log = logging.getLogger("sol-sniper.wallet_tokens")
 TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 TOKEN_2022 = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
 _GOOD: Dict[str, Any] = {"ts": 0.0, "owner": "", "rows": None}
+# The wallet panel reads the paid RPC every PAID_EVERY_S, or every second for a while after a trade.
+PAID_EVERY_S = 5.0
+_PAID = {"at": 0.0, "hot_until": 0.0}
+
+
+def wallet_hot(seconds: float = 20.0) -> None:
+    """A buy or sell was just sent: read the wallet from the paid RPC every second for a while."""
+    _PAID["hot_until"] = max(_PAID["hot_until"], time.time() + seconds)
 _SEEN: Dict[str, Dict[str, Any]] = {}
+_DECIMALS: Dict[str, int] = {}   # mint -> token decimals, from any balance read
+
+
+def decimals_for(mint: str) -> Optional[int]:
+    """Decimals seen for this mint, or None. Pump coins are always 6."""
+    mint = str(mint or "")
+    if mint in _DECIMALS:
+        return _DECIMALS[mint]
+    if mint.endswith("pump") or mint.startswith("pump"):
+        return 6
+    return None
 _primary_at = 0.0
 
 
@@ -182,10 +201,20 @@ async def read_wallet_now(owner: str) -> tuple[Optional[float], Optional[List[Di
             await asyncio.gather(*tasks, return_exceptions=True)
 
     # Paid and public together. The highest slot wins, so a slow stale node cannot stick.
+    # The paid RPC costs credits: three calls per read. It joins every PAID_EVERY_S, every second
+    # right after a trade, or when no public node answered.
     batch = list(urls[:3])
-    if paid and paid not in batch:
+    now_t = time.time()
+    want_paid = bool(paid) and paid not in batch and (
+        now_t < _PAID["hot_until"] or now_t - _PAID["at"] >= PAID_EVERY_S
+    )
+    if want_paid:
+        _PAID["at"] = now_t
         batch.append(paid)
     await _race(batch, 0.8)
+    if paid and not want_paid and not any(row[2] is not None for row in answers):
+        _PAID["at"] = time.time()
+        await _race([paid], 0.8)
     complete = [row for row in answers if row[1] is not None and row[2] is not None]
     pool = complete or [row for row in answers if row[1] is not None]
     if not pool:
@@ -196,6 +225,13 @@ async def read_wallet_now(owner: str) -> tuple[Optional[float], Optional[List[Di
         return (int(slot or 0), 1 if url == paid else 0, 1 if rows is not None else 0)
 
     slot, sol, rows, _url = max(pool, key=_rank)
+    if rows is not None:
+        # The wallet panel reads this every second. Keep it as the short cache too, so the pre-buy
+        # "already holding?" check answers at once instead of a fresh 4s RPC read per buy.
+        _remember_rows(rows)
+        _GOOD["ts"] = time.time()
+        _GOOD["owner"] = owner
+        _GOOD["rows"] = rows
     return sol, rows
 
 
@@ -205,17 +241,12 @@ def _public_rpc(url: str) -> bool:
 
 
 def primary_url() -> str:
-    """Paid RPC. yaml rpc.primary, else a non-public url, else SOLANA_RPC_URL."""
+    """Paid RPC: the first healthy one of yaml rpc.paid (then rpc.primary). All down: a public node."""
     try:
-        from src.config.file_config import load_config
-        rpc = (load_config() or {}).get("rpc") or {}
-        primary = str(rpc.get("primary") or "").strip()
-        if primary:
-            return primary
-        for item in rpc.get("urls") or []:
-            url = str(item or "").strip()
-            if url and not _public_rpc(url):
-                return url
+        from src.execution.rpc_pool import active_paid
+        url = active_paid()
+        if url:
+            return url
     except Exception:
         pass
     env = os.environ.get("SOLANA_RPC_URL", "").strip()
@@ -228,18 +259,23 @@ def _rpc_urls() -> List[str]:
     """Scan reads. The paid primary is not in this list, so a public timeout cannot sit in front of a buy."""
     urls = []
     primary = primary_url()
+    try:
+        from src.execution.rpc_pool import paid_urls
+        paid_all = set(paid_urls())
+    except Exception:
+        paid_all = set()
     for u in (
         os.environ.get("HELIUS_RPC_URL", "").strip(),
         os.environ.get("SOLANA_RPC_URL", "").strip(),
     ):
-        if u and u != primary and u not in urls:
+        if u and u != primary and u not in paid_all and u not in urls:
             urls.append(u)
     try:
         from src.config.file_config import load_config
         rpc = (load_config() or {}).get("rpc") or {}
         for u in rpc.get("urls") or []:
             u = (u or "").strip()
-            if u and u != primary and u not in urls:
+            if u and u != primary and u not in paid_all and u not in urls:
                 urls.append(u)
     except Exception:
         pass
@@ -388,6 +424,8 @@ def _parse_rows(value: list, seen: set) -> List[Dict[str, Any]]:
             seen.add(mint)
             ui = float(ta.get("uiAmount") or 0)
             decimals = int(ta.get("decimals") or 0)
+            if ta.get("decimals") is not None:
+                _DECIMALS[mint] = int(ta.get("decimals") or 0)
             if ui <= 0 and decimals >= 0:
                 ui = raw / float(10 ** decimals)
             rows.append({
@@ -424,7 +462,7 @@ async def get_token_accounts(owner: str, include_primary: bool = False, fresh: b
         not fresh
         and _GOOD["owner"] == owner
         and _GOOD["rows"] is not None
-        and now - float(_GOOD["ts"]) < 4.0
+        and now - float(_GOOD["ts"]) < PAID_EVERY_S + 3.0   # the panel's paid read refreshes it every 5s
     ):
         return _hide_closed(_GOOD["rows"])
     urls = _rpc_urls()
@@ -521,7 +559,7 @@ async def token_accounts_for_mint(owner: str, mint: str, paid_first: bool = Fals
                     })
                 return rows
             except Exception as e:
-                log.info("token account list failed %s %s", (url or "")[:36], type(e).__name__)
+                log.info("token account list failed %s %s", (url or "").split("//")[-1].split("/")[0].split("?")[0], type(e).__name__)
     return None
 
 
@@ -628,6 +666,8 @@ async def get_token_holding(owner: str, mint: str, fast: bool = False, paid_only
                         "ui_amount": float(ta.get("uiAmount") or 0),
                         "decimals": int(ta.get("decimals") or 0),
                     }
+                    if ta.get("decimals") is not None:
+                        _DECIMALS[mint] = int(ta.get("decimals") or 0)
                     if best is None or row["raw"] > best["raw"]:
                         best = row
                 if best and best["raw"] > 0:
@@ -641,7 +681,7 @@ async def get_token_holding(owner: str, mint: str, fast: bool = False, paid_only
                         return None
                     return {"raw": 0, "ui_amount": 0.0, "decimals": 0}
             except Exception as e:
-                log.info("token read failed %s %s", (url or "")[:36], type(e).__name__)
+                log.info("token read failed %s %s", (url or "").split("//")[-1].split("/")[0].split("?")[0], type(e).__name__)
     return None
 
 

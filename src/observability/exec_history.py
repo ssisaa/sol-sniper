@@ -213,40 +213,56 @@ class ExecutionHistory:
             log.info("EXEC wallet sync %d txs", len(self.wallet_entries))
 
     def wallet_recent(self) -> List[Dict[str, Any]]:
-        """Latest 50 wallet transactions, newest first."""
-        by: Dict[str, ExecTx] = {}
-        for e in list(self.wallet_entries) + list(self.entries):
-            key = e.signature or ""
-            if not key and not e.mint:
+        """Latest 50 wallet transactions, newest first. One row per transaction.
+
+        When the bot made the transaction, the row keeps the bot's reason, route and source
+        (callout, fast_pace_sell, ...). SOL and token amounts come from the chain parse when there
+        is one: the sell row is the swap only, and the token-account rent that comes back in its
+        own transaction is a separate RENT row.
+        """
+        import copy
+
+        bots: Dict[str, ExecTx] = {}
+        chain: Dict[str, ExecTx] = {}
+        loose: List[ExecTx] = []
+        for e in self.entries:
+            if e.signature:
+                old = bots.get(e.signature)
+                if old is None or (e.mint and not old.mint) or e.sol_amount > old.sol_amount:
+                    bots[e.signature] = e
+            elif e.mint:
+                loose.append(e)
+        for e in self.wallet_entries:
+            if e.signature:
+                old = chain.get(e.signature)
+                if old is None or (e.mint and not old.mint):
+                    chain[e.signature] = e
+        out: List[ExecTx] = []
+        for sig in set(bots) | set(chain):
+            bot = bots.get(sig)
+            onchain = chain.get(sig)
+            if bot is None:
+                out.append(onchain)
                 continue
-            key = key or f"{e.side}:{e.mint}:{int(e.ts or 0)}"
-            prev = by.get(key)
-            if prev is None:
-                by[key] = e
+            row = copy.copy(bot)
+            if row.source == "wallet" and onchain is not None:
+                out.append(onchain)
                 continue
-            if e.mint and not prev.mint:
-                if e.sol_amount <= 0:
-                    e.sol_amount = prev.sol_amount
-                by[key] = e
-                continue
-            # The bot row is max position. A larger wallet figure includes the
-            # token-account deposit, which is not the buy.
-            bot = e if e.source == "bot" and e.sol_amount > 0 else None
-            if bot is None and prev.source == "bot" and prev.sol_amount > 0:
-                bot = prev
-            other = prev if bot is e else e
-            if bot is not None and other.sol_amount > bot.sol_amount + 0.0002:
-                if other.symbol and not bot.symbol:
-                    bot.symbol = other.symbol
-                if other.mint and not bot.mint:
-                    bot.mint = other.mint
-                if other.token_amount and not bot.token_amount:
-                    bot.token_amount = other.token_amount
-                by[key] = bot
-                continue
-            if e.sol_amount > prev.sol_amount:
-                by[key] = e
-        ordered = sorted(by.values(), key=lambda e: e.ts or 0.0, reverse=True)
+            if onchain is not None and onchain.side in ("BUY", "SELL"):
+                if onchain.sol_amount > 0:
+                    row.sol_amount = onchain.sol_amount
+                if onchain.token_amount > 0:
+                    row.token_amount = onchain.token_amount
+                if onchain.mint and not row.mint:
+                    row.mint = onchain.mint
+                if onchain.symbol and (not row.symbol or row.symbol == (row.mint or "")[:8]):
+                    row.symbol = onchain.symbol
+                row.ts = onchain.ts or row.ts
+                row.status = onchain.status or row.status
+            row.reason = (row.reason or "").replace(" rent_back", "").strip() if onchain is not None else row.reason
+            out.append(row)
+        out.extend(loose)
+        ordered = sorted(out, key=lambda e: e.ts or 0.0, reverse=True)
         rows = []
         for e in ordered[:WALLET_SHOW]:
             item = e.to_dict()
@@ -365,6 +381,16 @@ class ExecutionHistory:
                         break
             except Exception:
                 pass
+        if source == "bot" and token_amount and mint:
+            # Fills carry raw units. Rows from the chain carry real amounts. Store real amounts.
+            try:
+                from src.execution.wallet_tokens import decimals_for
+                dec = decimals_for(mint)
+            except Exception:
+                dec = None
+            if dec is None:
+                dec = 6
+            token_amount = float(token_amount) / float(10 ** int(dec))
         solscan = f"https://solscan.io/tx/{sig}" if _is_valid_tx_sig(sig) else ""
         e = ExecTx(
             ts=float(ts) if ts else time.time(),
@@ -532,9 +558,16 @@ async def _symbol_for(client, mint: str) -> str:
     return symbol
 
 
+def _all_instructions(msg: Dict[str, Any], meta: Dict[str, Any]) -> List[Dict[str, Any]]:
+    out = [ix for ix in (msg.get("instructions") or []) if isinstance(ix, dict)]
+    for group in meta.get("innerInstructions") or []:
+        out.extend(ix for ix in (group.get("instructions") or []) if isinstance(ix, dict))
+    return out
+
+
 async def _parse_wallet_tx(client, url: str, sig: str, pubkey: str) -> Dict[str, Any]:
     cached = _parsed_cache.get(sig)
-    if cached and cached.get("side") in ("BUY", "SELL", "FEE"):
+    if cached and cached.get("side") in ("BUY", "SELL", "FEE", "FAILED", "RENT", "SENT", "RECEIVED"):
         return cached
     payload = {
         "jsonrpc": "2.0",
@@ -575,17 +608,24 @@ async def _parse_wallet_tx(client, url: str, sig: str, pubkey: str) -> Dict[str,
     # A new token account locks about 0.00204 SOL. That is a deposit, not the buy.
     # It comes back when the coin is sold and the account closes. The trade is
     # max position plus the network fee only.
-    locked = 0.0
+    # Sign matters: an account opened in this tx took SOL out of the wallet, one closed put SOL back.
+    # A sell routed through another token (e.g. coin -> MUSK4 -> SOL) opens a MUSK4 account: that
+    # rent is a deposit, so it is added back to the sale, not subtracted from it.
+    opened_rent = 0.0
+    closed_rent = 0.0
     for i, pre in enumerate(pre_b):
         if i == user_i or i >= len(post_b):
             continue
         pre_v = int(pre or 0)
         post_v = int(post_b[i] or 0)
         if pre_v == 0 and post_v > 0:
-            locked += post_v / 1_000_000_000
+            opened_rent += post_v / 1_000_000_000
         elif pre_v > 0 and post_v == 0:
-            locked += pre_v / 1_000_000_000
-    trade_sol = abs(sol_delta) - locked
+            closed_rent += pre_v / 1_000_000_000
+    if sol_delta > 0:
+        trade_sol = sol_delta + opened_rent - closed_rent      # sell: SOL that came from the swap
+    else:
+        trade_sol = -sol_delta - opened_rent + closed_rent     # buy: SOL that went into the swap
     if trade_sol < 0.00002:
         trade_sol = 0.0
 
@@ -613,17 +653,67 @@ async def _parse_wallet_tx(client, url: str, sig: str, pubkey: str) -> Dict[str,
         for mint in _walk_mints(msg.get("instructions") or []):
             best_mint = mint
             break
-    if best_delta > 0:
+    failed = bool(meta.get("err"))
+    if failed:
+        side = "FAILED"
+    elif best_delta > 0:
         side = "BUY"
     elif best_delta < 0:
         side = "SELL"
+    elif closed_rent > 0 and sol_delta > 0 and opened_rent == 0:
+        side = "RENT"
     elif sol_delta < -0.00001:
         side = "BUY" if best_mint else "FEE"
     elif sol_delta > 0.00001:
         side = "SELL" if best_mint else "FEE"
     else:
         side = "ONCHAIN"
+    # A plain SOL transfer is not a fee. Showing 0.01 SOL sent to another wallet as "Network fee"
+    # hid a drain of this wallet. SENT / RECEIVED name the other wallet and never count as trade fees.
+    counterparty = ""
+    if side == "FEE":
+        out_l = in_l = 0
+        out_to = in_from = ""
+        for ix in _all_instructions(msg, meta):
+            parsed_ix = ix.get("parsed") if isinstance(ix, dict) else None
+            if not isinstance(parsed_ix, dict) or ix.get("program") != "system":
+                continue
+            if parsed_ix.get("type") not in ("transfer", "transferWithSeed"):
+                continue
+            info = parsed_ix.get("info") or {}
+            src_a, dst_a = str(info.get("source") or ""), str(info.get("destination") or "")
+            lam = int(info.get("lamports") or 0)
+            if src_a == pubkey and dst_a != pubkey:
+                out_l += lam
+                out_to = out_to or dst_a
+            elif dst_a == pubkey and src_a != pubkey:
+                in_l += lam
+                in_from = in_from or src_a
+        if out_l > 0 and sol_delta < 0:
+            side, counterparty, trade_sol = "SENT", out_to, out_l / 1_000_000_000
+        elif in_l > 0 and sol_delta > 0:
+            side, counterparty, trade_sol = "RECEIVED", in_from, in_l / 1_000_000_000
+    if not best_mint:
+        # A failed or rent-only transaction has no balance change. The coin is still in its
+        # token balances or, for a pump coin, in the account list.
+        for mint in list(pre_t) + list(post_t):
+            best_mint = mint
+            break
+    if not best_mint and side in ("FAILED", "RENT"):
+        for key in pubs:
+            if key.endswith("pump") and key != pubkey:
+                best_mint = key
+                break
+    if side == "FAILED":
+        trade_sol = fee_sol
+    elif side == "RENT":
+        trade_sol = sol_delta
     symbol = await _symbol_for(client, best_mint) if best_mint else ""
+    reason = {
+        "BUY": "wallet_swap", "SELL": "wallet_swap",
+        "FAILED": "failed_tx", "RENT": "rent_back",
+        "SENT": f"sent_to:{counterparty}", "RECEIVED": f"received_from:{counterparty}",
+    }.get(side, "wallet_tx")
     parsed = {
         "signature": sig,
         "side": side,
@@ -633,9 +723,9 @@ async def _parse_wallet_tx(client, url: str, sig: str, pubkey: str) -> Dict[str,
         "sol_amount": trade_sol,
         "token_amount": abs(best_delta),
         "block_time": res.get("blockTime"),
-        "reason": "wallet_swap" if side in ("BUY", "SELL") else "wallet_tx",
+        "reason": reason,
     }
-    if best_mint or parsed["sol_amount"] > 0 or parsed["side"] in ("BUY", "SELL", "FEE"):
+    if best_mint or parsed["sol_amount"] > 0 or parsed["side"] in ("BUY", "SELL", "FEE", "FAILED", "RENT", "SENT", "RECEIVED"):
         _parsed_cache[sig] = parsed
     elif parsed["status"] == "failed":
         _parsed_cache[sig] = parsed
@@ -752,7 +842,7 @@ async def build_wallet_rows(pubkey: str, limit: int = 50, parse_budget: int = 12
     pending: List[str] = []
     for sig in sigs:
         cached = _parsed_cache.get(sig)
-        if cached and cached.get("side") in ("BUY", "SELL", "FEE"):
+        if cached and cached.get("side") in ("BUY", "SELL", "FEE", "FAILED", "RENT", "SENT", "RECEIVED"):
             rows[sig] = cached
             continue
         failed = bool((meta.get(sig) or {}).get("err"))
@@ -779,8 +869,6 @@ async def build_wallet_rows(pubkey: str, limit: int = 50, parse_budget: int = 12
             async with httpx.AsyncClient(timeout=2.5) as client:
                 for url in endpoints:
                     parsed = await _parse_wallet_tx(client, url, sig, pubkey)
-                    if parsed and parsed.get("status") == "failed" and not parsed.get("mint"):
-                        return {}
                     if parsed and parsed.get("side") not in ("", "ONCHAIN", "TX"):
                         parsed["block_time"] = parsed.get("block_time") or item.get("blockTime")
                         return parsed

@@ -217,8 +217,8 @@ async def wallet_buy_block(jup, buying_mint: str = "", ignore_mints=None) -> str
     if status == "fail":
         log.warning("SQLITE wallet read failed — will not treat a bad read as an empty wallet")
     try:
-        accounts = await get_token_accounts(pk, include_primary=True)
-    except Exception:
+        accounts = await asyncio.wait_for(get_token_accounts(pk, include_primary=True), 1.0)
+    except Exception:   # a slow read must not hold the buy: 1s, then the miss rule below
         accounts = None
     if not accounts:
         if status == "fail":

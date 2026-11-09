@@ -143,13 +143,13 @@ class SolanaRPCClient:
             resp = await self._client.post(ep.url, json=payload)
             latency = (time.perf_counter() - start) * 1000.0
             if resp.status_code != 200:
-                log.debug("RPC skip HTTP %s %s", resp.status_code, ep.url[:48])
+                log.debug("RPC skip HTTP %s %s", resp.status_code, ep.url.split("//")[-1].split("/")[0].split("?")[0])
                 return RPCResponse(result=None, endpoint=ep.url, latency_ms=latency, error=f"http {resp.status_code}")
             data = resp.json()
             if "error" in data:
                 err_msg = str(data["error"])
                 if _is_rate_limit(err_msg) or _is_version_skip(err_msg):
-                    log.debug("RPC skip %s %s", ep.url[:48], err_msg[:80])
+                    log.debug("RPC skip %s %s", ep.url.split("//")[-1].split("/")[0].split("?")[0], err_msg[:80])
                     return RPCResponse(result=None, endpoint=ep.url, latency_ms=latency, error=err_msg)
                 await self._record_failure(ep, err_msg)
                 return RPCResponse(result=None, endpoint=ep.url, latency_ms=latency, error=err_msg)
@@ -157,7 +157,7 @@ class SolanaRPCClient:
             return RPCResponse(result=data.get("result"), endpoint=ep.url, latency_ms=latency)
         except Exception as exc:
             latency = (time.perf_counter() - start) * 1000.0
-            log.debug("RPC skip %s %s", ep.url[:48], exc)
+            log.debug("RPC skip %s %s", ep.url.split("//")[-1].split("/")[0].split("?")[0], exc)
             return RPCResponse(result=None, endpoint=ep.url, latency_ms=latency, error=str(exc))
 
     async def _record_success(self, ep: RPCEndpoint, latency_ms: float) -> None:
@@ -173,7 +173,7 @@ class SolanaRPCClient:
             ep.last_latency_ms = 9999.0
             if ep.consecutive_failures >= self.max_failures:
                 ep.healthy = False
-                log.warning("Endpoint marked unhealthy: %s (%s)", ep.url[:60], reason)
+                log.warning("Endpoint marked unhealthy: %s (%s)", ep.url.split("//")[-1].split("/")[0].split("?")[0], reason)
             ep.last_checked = time.time()
 
     async def health_check_all(self) -> Dict[str, Any]:
@@ -276,7 +276,7 @@ class SolanaRPCClient:
     def status(self) -> List[Dict[str, Any]]:
         return [
             {
-                "url": e.url[:70] + ("..." if len(e.url) > 70 else ""),
+                "url": e.url.split("//")[-1].split("/")[0].split("?")[0],
                 "healthy": e.healthy,
                 "latency_ms": round(e.last_latency_ms, 1),
                 "failures": e.consecutive_failures,

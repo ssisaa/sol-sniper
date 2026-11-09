@@ -23,6 +23,8 @@ def _cfg() -> Dict[str, str]:
 
 def _mode_label(source: str) -> str:
     s = (source or "").strip().lower()
+    if "mayhem" in s:
+        return "Mayhem"
     if "opencopy" in s:
         return "OpenCopy"
     if "callout" in s:
@@ -37,6 +39,8 @@ def _mode_label(source: str) -> str:
 def _opencopy_user(details: Dict[str, Any]) -> str:
     """Subject extra for an OpenCopy trade: User [opencopy-<caller>]."""
     source = str(details.get("source") or "").strip().lower()
+    if "mayhem" in source:
+        return " User [mayhem-Mayhem_Mode]"
     if "opencopy" not in source:
         return ""
     caller = str(details.get("callout_user") or "").strip() or "caller"
@@ -56,6 +60,8 @@ def _plain_reason(reason: str) -> str:
     raw = str(reason or "").strip()
     if raw == "m5_null":
         return "5m percent was null"
+    if raw == "mayhem_paused":
+        return "pump paused this Mayhem coin"
     if raw == "caller_closed":
         return "Caller left and since-buy was at least +1%"
     if raw == "caller_drop_7":

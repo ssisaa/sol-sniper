@@ -29,6 +29,59 @@ SWAP_URLS = [
 ]
 
 
+_TRADE_BUSY_UNTIL = 0.0   # monotonic: a buy/sell quote is in flight; price polls stand aside
+
+# Background quotes (value marks, dust checks, wallet scans) share one budget across every client:
+# one network quote per BG_GAP_S, keyless host only, cached BG_CACHE_S. Buys and sells (urgent) skip it.
+BG_GAP_S = 6.0
+BG_CACHE_S = 45.0
+_BG = {"next": 0.0, "backoff": 0.0}
+_METER: Dict[str, int] = {}
+_METER_AT = [time.monotonic()]
+
+
+def _meter(key: str) -> None:
+    _METER[key] = _METER.get(key, 0) + 1
+    now = time.monotonic()
+    if now - _METER_AT[0] >= 60.0:
+        _METER_AT[0] = now
+        parts = ", ".join(f"{k} {v}" for k, v in sorted(_METER.items(), key=lambda kv: -kv[1]))
+        _METER.clear()
+        log.info("JUPITER 60s: %s", parts or "none")
+
+
+def _caller() -> str:
+    import sys
+    f = sys._getframe(3)
+    while f is not None and f.f_code.co_name in ("quote", "quote_sol_to_token", "quote_token_to_sol"):
+        f = f.f_back
+    return f.f_code.co_name if f is not None else "?"
+
+
+def bg_allowed() -> bool:
+    """A background Jupiter call (quote or price) may go out now."""
+    now = time.monotonic()
+    return not trade_busy() and now >= _BG["next"] and now >= _BG["backoff"]
+
+
+def bg_quiet() -> bool:
+    """Jupiter is not rate-limiting background calls and no trade needs it."""
+    return not trade_busy() and time.monotonic() >= _BG["backoff"]
+
+
+def bg_spend() -> None:
+    _BG["next"] = time.monotonic() + BG_GAP_S
+
+
+def bg_rate_limited(seconds: float = 20.0) -> None:
+    _BG["backoff"] = max(_BG["backoff"], time.monotonic() + seconds)
+
+
+def trade_busy() -> bool:
+    """True while a buy or sell needs Jupiter. Background price polls must not spend the rate limit."""
+    return time.monotonic() < _TRADE_BUSY_UNTIL
+
+
 @dataclass
 class JupiterQuote:
     input_mint: str
@@ -75,6 +128,9 @@ class JupiterClient:
         The paid host is what was raising ConnectTimeout from this machine.
         """
         urls = list(QUOTE_URLS if kind == "quote" else SWAP_URLS)
+        if self._api_key:
+            # Keyed host first: its rate limit belongs to buys and sells (price polls use lite-api).
+            urls.sort(key=lambda u: "lite-api.jup.ag" in u)
         if not self._api_key:
             urls = [url for url in urls if "lite-api.jup.ag" in url]
         return urls or ["https://lite-api.jup.ag/swap/v1/" + ("quote" if kind == "quote" else "swap")]
@@ -152,17 +208,28 @@ class JupiterClient:
         only_direct_routes: bool = False,
         urgent: bool = False,
     ) -> Optional[JupiterQuote]:
-        if not urgent and not self.trading_allowed():
-            log.warning("Jupiter quote blocked: %s", self.blocked_reason())
-            return None
+        global _TRADE_BUSY_UNTIL
         token = output_mint if input_mint == SOL_MINT else input_mint
         if time.monotonic() < _NO_MARKET.get(token, 0):
             self._last_error = "NO_ROUTES_FOUND"
             return None
         cache_key = f"{input_mint}:{output_mint}:{amount}:{slippage_bps}"
         hit = self._quote_cache.get(cache_key)
-        if hit and time.monotonic() - hit[0] < self._cache_ttl:
-            return hit[1]
+        if urgent:
+            _TRADE_BUSY_UNTIL = max(_TRADE_BUSY_UNTIL, time.monotonic() + 6.0)
+            if hit and time.monotonic() - hit[0] < self._cache_ttl:
+                return hit[1]
+            _meter("trade")
+        else:
+            # A value mark or scan quote. It never competes with a trade and never uses the key.
+            if hit and time.monotonic() - hit[0] < BG_CACHE_S:
+                return hit[1]
+            if not bg_allowed() or time.monotonic() < self._backoff_until or not self.trading_allowed():
+                self._last_error = "background_skip"
+                _meter("skipped")
+                return None
+            bg_spend()
+            _meter(_caller())
 
         params = {
             "inputMint": input_mint,
@@ -174,7 +241,10 @@ class JupiterClient:
             params["onlyDirectRoutes"] = "true"
 
         last_err = None
-        for url in self._urls("quote"):
+        urls = self._urls("quote")
+        if not urgent:
+            urls = [u for u in urls if "lite-api.jup.ag" in u] or urls[:1]
+        for url in urls:
             await self._throttle(urgent=urgent)
             try:
                 status, text = await self._http("GET", url, params=params, timeout=30.0)
@@ -182,11 +252,17 @@ class JupiterClient:
                     body = (text or "")[:160].replace("\n", " ") if isinstance(text, str) else ""
                     last_err = f"{url} HTTP {status} {body}".strip()
                     if status == 429:
+                        _meter("429")
+                        bg_rate_limited(20.0)
+                        if not urgent:
+                            # A background quote: no backoff for trades, no second host. Just stop.
+                            self._last_error = last_err
+                            return None
                         self._set_backoff(8.0)
                         if not getattr(self, "_rate_log_at", 0) or time.monotonic() - self._rate_log_at > 30:
                             self._rate_log_at = time.monotonic()
-                            log.warning("Jupiter quote 429 — backing off")
-                        break
+                            log.warning("Jupiter quote 429 on %s — trying the next host", url.split("/")[2])
+                        continue   # the other host has its own limit (api.jup.ag uses the API key)
                     if "NO_ROUTES" in body.upper() or "NOT_TRADABLE" in body.upper():
                         _NO_MARKET[token] = time.monotonic() + 1800
                         self._last_error = last_err

@@ -112,7 +112,7 @@ A **source** is a way of finding coins to buy. Each one has an **Enabled** switc
 1. **Settings** page → turn **Enabled** on for the source(s) you want and off for the rest.
 2. **Dashboard → Live controls → filter mode** → pick the matching profile, for example `opencopy (OpenHolds only)`.
 3. Press **Apply settings**.
-4. For **OpenCopy**: open **OpenHolds**, search a caller, click the match to add them, and tick **Open existing** if you also want coins they opened in the last hour.
+4. For **OpenCopy**: open **OpenHolds**, search a caller, click the match to add them, and tick **Open existing** to see coins they opened in the last 15 minutes. Hide existing shows 15 minutes to 1 hour; older coins and the caller's dust, spam, and hidden coins are not shown or streamed. Coins this bot holds stay pinned until closed.
 
 > Launch and Predict don't share a buy slot. Predict never runs during Launch or Dayscalp.
 
@@ -164,6 +164,7 @@ A **source** is a way of finding coins to buy. Each one has an **Enabled** switc
 | Setting | Default | Meaning |
 |---|---|---|
 | **Follow caller exit** | On | When the live stream sees the caller sell the whole coin, sell your copy in full at once. |
+| **OpenHolds auto-open range** | 5% / $100 | Auto-buy needs unrealized $0.00 up to the USD top and percentage above 0% up to the % top. Floors are fixed. |
 | **Copy stop-loss %** | -15 | Callout and OpenCopy trades sell in full at this % since buy; 0 is off. |
 | **Dropoff** | Off | On: caller sold means sell now. Off: under +1% the trade is kept; at +1% or more it sells. |
 | **Caller drop recovery %** | +7 | After the caller sold and the trade went negative, sell when it gets back to this. |

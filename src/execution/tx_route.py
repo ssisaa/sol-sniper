@@ -206,7 +206,7 @@ def sync_https(method: str, url: str, *, params: dict | None = None, json_body=N
             pass
 
 
-_RPC_GATE = threading.BoundedSemaphore(4)
+_RPC_GATE = threading.BoundedSemaphore(8)
 
 
 def _rpc_url(url: str) -> str:
@@ -218,7 +218,7 @@ def _rpc_url(url: str) -> str:
     return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path or "/", parsed.query, ""))
 
 
-def rpc_post(url: str, body: dict, timeout: float = 4.0) -> tuple[int, str]:
+def _rpc_post_one(url: str, body: dict, timeout: float = 4.0) -> tuple[int, str]:
     """JSON-RPC on a real socket. A regional Flux host that does not connect falls over to the CDN.
 
     The CDN is the same key and picks the closest live region. 99.9% uptime does not
@@ -247,6 +247,55 @@ def rpc_post(url: str, body: dict, timeout: float = 4.0) -> tuple[int, str]:
                 text = text.decode("utf-8", "replace")
             return status, text
     raise last or OSError(f"rpc {host or 'unknown'} failed")
+
+
+def rpc_post(url: str, body: dict, timeout: float = 4.0, failover: bool = True) -> tuple[int, str]:
+    """JSON-RPC. A paid RPC that fails hands the same call to the next paid RPC, then the public nodes.
+
+    Public URLs never fail over to a paid one: scans must not spend paid credits.
+    """
+    from src.execution import rpc_pool
+    url = str(url or "").strip()
+    paid = rpc_pool.is_paid(url)
+    if not paid or not failover:
+        try:
+            status, text = _rpc_post_one(url, body, timeout)
+        except Exception as exc:
+            if paid:
+                rpc_pool.mark_bad(url, type(exc).__name__)
+            raise
+        if paid and rpc_pool.plan_blocked(status, text):
+            rpc_pool.note_no_method(url, str(body.get("method", "") if isinstance(body, dict) else ""))
+        elif paid and rpc_pool.bad_status(status):
+            rpc_pool.mark_bad(url, f"http {status}", rpc_pool.COOL_429_S if status == 429 else rpc_pool.COOL_S)
+        return status, text
+    method = str(body.get("method", "") if isinstance(body, dict) else "")
+    tries = ([url] if rpc_pool.supports(url, method) else []) + rpc_pool.chain_after(url, method)
+    last_exc: Exception | None = None
+    last_resp: tuple[int, str] | None = None
+    for i, target in enumerate(tries):
+        try:
+            status, text = _rpc_post_one(target, body, timeout)
+        except Exception as exc:
+            last_exc = exc
+            if rpc_pool.is_paid(target):
+                rpc_pool.mark_bad(target, type(exc).__name__)
+            continue
+        if rpc_pool.is_paid(target) and rpc_pool.plan_blocked(status, text):
+            rpc_pool.note_no_method(target, method)
+            last_resp = (status, text)
+            continue
+        if rpc_pool.bad_status(status):
+            last_resp = (status, text)
+            if rpc_pool.is_paid(target):
+                rpc_pool.mark_bad(target, f"http {status}", rpc_pool.COOL_429_S if status == 429 else rpc_pool.COOL_S)
+            continue
+        if i and target != url:
+            log.debug("RPC %s via %s (failover)", method or "?", rpc_pool.host(target))
+        return status, text
+    if last_resp is not None:
+        return last_resp
+    raise last_exc or OSError("every RPC failed")
 
 
 async def lightning_warm_loop() -> None:
@@ -387,7 +436,9 @@ async def _lightning_once(action: str, mint: str, amount, denominated_in_sol: bo
         "slippage": int(slippage),
         "priorityFee": float(priority_fee),
         "pool": pool,
-        "skipPreflight": "true",
+        # Simulate first. A trade that would fail (coin already sold, curve finished, a quote coin the
+        # pump route cannot take) is refused here with no fee, instead of landing as a failed tx.
+        "skipPreflight": "false",
     }
     try:
         status, text = await asyncio.to_thread(
@@ -457,13 +508,56 @@ def _lightning_no_pool(err: str) -> bool:
 def _migrated(err: str) -> bool:
     """The bonding curve is gone. The coin is on pump-amm."""
     low = (err or "").lower()
-    return "migrated" in low or "does not exist" in low or "bonding curve" in low or "failed to find pump" in low
+    return ("migrated" in low or "does not exist" in low or "bonding curve" in low or "failed to find pump" in low
+            or "bondingcurvecomplete" in low or "0x1775" in low)
 
 
 def _pool_reject(err: str) -> bool:
     """The curve sell landed and the program refused it. Another pool can still sell."""
     text = err or ""
-    return any(code in text for code in ("6063", "6022", "6023", "6024", "6005", "6094", "6013", "6025"))
+    low = text.lower()
+    codes = ("6063", "6022", "6023", "6024", "6005", "6094", "6013", "6025")
+    # A simulation answer carries the hex form (custom program error: 0x17af) or the name.
+    hexes = tuple(hex(int(c)) for c in codes)
+    names = ("unsupportedquotemint", "sellzeroamount", "bondingcurvecomplete")
+    return any(c in text for c in codes) or any(h in low for h in hexes) or any(n in low for n in names)
+
+
+_LN_HOLD: Dict[str, tuple] = {}   # mint -> (until_ts, why): Lightning is not used for this coin
+
+
+def lightning_hold(mint: str, seconds: float, why: str) -> None:
+    import time as _t
+    mint = str(mint or "")
+    if not mint:
+        return
+    until = _t.time() + float(seconds)
+    prev = _LN_HOLD.get(mint)
+    if prev is None or prev[0] < until:
+        _LN_HOLD[mint] = (until, why)
+        log.warning("TX lightning off for %s %.0fs — %s", mint[:8], seconds, why)
+
+
+def _non_sol_quote(mint: str) -> str:
+    """The quote coin when this pump coin's curve is not SOL-quoted (read from its curve account)."""
+    try:
+        from src.observability.dashboard import _SOL_QUOTES, _quote_of
+    except Exception:
+        return ""
+    quote = _quote_of.get(str(mint or ""), "")
+    return quote if quote and quote not in _SOL_QUOTES else ""
+
+
+def lightning_held(mint: str) -> str:
+    """Why Lightning is off for this coin right now, or empty."""
+    import time as _t
+    hit = _LN_HOLD.get(str(mint or ""))
+    if not hit:
+        return ""
+    if hit[0] < _t.time():
+        _LN_HOLD.pop(str(mint or ""), None)
+        return ""
+    return hit[1]
 
 
 async def lightning_trade(action: str, mint: str, amount, denominated_in_sol: bool, slippage: int, priority_fee: float, pools: tuple = ()) -> tuple[str, str]:
@@ -483,22 +577,21 @@ async def lightning_trade(action: str, mint: str, amount, denominated_in_sol: bo
     last = "lightning_skip"
     use = tuple(pool for pool in (pools or (venue,)) if pool and pool != "auto") or (venue,)
     tried_amm = "pump-amm" in use
-    retried = False
     for pool in use:
         sig, err = await _lightning_once(action, mint, amount, denominated_in_sol, slippage, priority_fee, pool, key)
         if sig:
             return sig, ""
         last = err or last
         if _lightning_timeout_err(last):
-            log.warning("TX lightning %s pool=%s mint=%s — %s, fresh socket", action, pool, mint[:8], last[:80])
+            # No resend. A request that timed out here is often still sent by PumpPortal and lands
+            # 10-30s later; a second request doubled those stray transactions.
+            log.warning("TX lightning %s pool=%s mint=%s — %s, fresh socket, no resend", action, pool, mint[:8], last[:80])
             await _drop_lightning()
-            if not retried:
-                retried = True
-                sig, err = await _lightning_once(action, mint, amount, denominated_in_sol, slippage, priority_fee, pool, key)
-                if sig:
-                    return sig, ""
-                last = err or last
+            lightning_hold(mint, 90, "timed out; that request may still land")
             log.warning("TX lightning %s host not answering mint=%s — Jupiter next", action, mint[:8])
+            return "", last
+        if "6063" in str(last) or "0x17af" in str(last).lower():
+            lightning_hold(mint, 1800, "6063 unsupported quote mint (simulation)")
             return "", last
         if pool == "pump" and not tried_amm and "6063" not in str(last):
             tried_amm = True
@@ -652,6 +745,13 @@ async def run_swap(trader, side: str, mint: str, sol: float = 0.0, raw: int = 0,
     if venue == "jupiter":
         order = ["jupiter"]
         log.info("TX %s jupiter mint=%s reason=%s", side, mint[:8], reason or "-")
+    elif _non_sol_quote(mint):
+        order = ["jupiter"]
+        log.info("TX %s jupiter mint=%s reason=%s — its curve trades against %s, not SOL; Lightning cannot route it",
+                 side, mint[:8], reason or "-", _non_sol_quote(mint)[:8])
+    elif lightning_held(mint):
+        order = ["jupiter"]
+        log.info("TX %s jupiter mint=%s reason=%s — Lightning off for this coin (%s)", side, mint[:8], reason or "-", lightning_held(mint))
     else:
         order = ["lightning"]
         log.info("TX %s pool=%s mint=%s reason=%s", side, venue, mint[:8], reason or "-")
@@ -697,6 +797,7 @@ async def run_swap(trader, side: str, mint: str, sol: float = 0.0, raw: int = 0,
             err_now = str(getattr(trader, "_last_tx_err", "") or "")
             if err_now and "6063" in err_now:
                 last = err_now
+                lightning_hold(mint, 1800, "6063 unsupported quote mint")
                 log.warning("TX buy 6063 mint=%s — Jupiter. The SOL was not spent.", mint[:8])
                 return None
             if err_now and err_now != "confirm_unreachable" and _pool_reject(err_now):
@@ -780,6 +881,8 @@ async def run_swap(trader, side: str, mint: str, sol: float = 0.0, raw: int = 0,
         last = chain_err or f"{name}_not_confirmed"
         if chain_err and chain_err != "confirm_unreachable":
             log.warning("TX %s %s failed on chain mint=%s sig=%s err=%s — next route", side, name, mint[:8], sig[:16], chain_err[:120])
+            if name == "lightning" and "6063" in chain_err:
+                lightning_hold(mint, 1800, "6063 unsupported quote mint")
             if name == "lightning" and side == "sell" and ("6063" in chain_err or _pool_reject(chain_err)):
                 remember_off_curve(mint)
                 amount = "100%" if full else max(int(raw or 0), 1) / 1_000_000

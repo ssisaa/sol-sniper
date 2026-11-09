@@ -79,6 +79,8 @@ class LedgerEntry:
     h1_pct: Optional[float] = None
     price_usd: Optional[float] = None
     book_locked: bool = False
+    call_user: str = ""             # Callout / OpenCopy: the caller whose trade this copied
+    call_wallet: str = ""           # that caller's wallet (Trade History links to the pump.fun profile)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -786,6 +788,28 @@ class TradeLedger:
         log.warning("LEDGER drop unfilled OPEN mint=%s rows=%s — coins were never in the wallet", mint[:8], dropped)
         return dropped
 
+    def fill_call_user(self, mint: str, name: str, wallet: str = "") -> int:
+        """Put the caller's name and wallet on this coin's Callout/OpenCopy rows that do not have them yet."""
+        name = str(name or "").strip()
+        wallet = str(wallet or "").strip()
+        if not mint or not name or name == "No caller holds":
+            return 0
+        changed = [
+            e for e in self.entries
+            if e.mint == mint and str(e.source or "") in ("callout", "opencopy", "mayhem")
+            and (not e.call_user or (wallet and not e.call_wallet))
+        ]
+        for e in changed:
+            e.call_user = e.call_user or name
+            if wallet and not e.call_wallet:
+                e.call_wallet = wallet
+        if not changed:
+            return 0
+        self._rewrite()
+        for e in changed:
+            self._push_remote(e)
+        return len(changed)
+
     def fill_m5(self, mint: str, m5_pct: float, since_ts: float = 0.0) -> int:
         """Write the 5m reading onto this buy's rows that were still blank."""
         changed = []
@@ -1015,6 +1039,48 @@ class TradeLedger:
         self._open_dirty.discard(mint)
         self._rewrite()
 
+    def fill_wallets_from_callers(self) -> int:
+        """Rows that have a caller name but no wallet: look the name up in the CallOuts caller list."""
+        need = [e for e in self.entries if e.call_user and not e.call_wallet]
+        if not need:
+            return 0
+        try:
+            users = json.loads((self.path.parent / "callout_users.json").read_text(encoding="utf-8"))
+            by_name = {str(u.get("userName") or ""): str(u.get("walletAddress") or "") for u in users if isinstance(u, dict)}
+        except Exception:
+            return 0
+        changed = []
+        for e in need:
+            w = by_name.get(e.call_user, "")
+            if w:
+                e.call_wallet = w
+                changed.append(e)
+        if changed:
+            self._rewrite()
+            for e in changed:
+                self._push_remote(e)
+        return len(changed)
+
+    def _call_wallet(self, source: str, mint: str) -> str:
+        if str(source or "") not in ("callout", "opencopy", "mayhem") and _source_name(source) not in ("callout", "opencopy", "mayhem"):
+            return ""
+        for x in reversed(self.entries):
+            if x.mint == mint and getattr(x, "call_wallet", ""):
+                return x.call_wallet
+        return ""
+
+    def _call_user(self, source: str, name: str, mint: str) -> str:
+        """Caller name for a Callout/OpenCopy trade. A close without one keeps the buy's caller."""
+        if _source_name(source) not in ("callout", "opencopy", "mayhem") and str(source or "") not in ("callout", "opencopy", "mayhem"):
+            return ""
+        name = str(name or "").strip()
+        if name and name != "No caller holds":
+            return name
+        for x in reversed(self.entries):
+            if x.mint == mint and getattr(x, "call_user", ""):
+                return x.call_user
+        return ""
+
     def record_open(
         self,
         *,
@@ -1060,6 +1126,8 @@ class TradeLedger:
             symbol=symbol or mint[:8],
             mode=mode,
             source=_source_name(source),
+            call_user=self._call_user(source, callout_user, mint),
+            call_wallet=self._call_wallet(source, mint),
             token_amount=token_amount,
             entry_sol=entry_sol,
             entry_fee_sol=entry_fee_sol,
@@ -1174,6 +1242,8 @@ class TradeLedger:
             symbol=symbol or mint[:8],
             mode=mode,
             source=_source_name(source),
+            call_user=self._call_user(source, callout_user, mint),
+            call_wallet=self._call_wallet(source, mint),
             token_amount=token_amount,
             entry_sol=entry_sol,
             entry_fee_sol=entry_fee_sol,
@@ -1542,6 +1612,28 @@ class TradeLedger:
         """
         wrote = 0
         seen = {str(sell.get("sig") or "") for sell in sells if sell.get("sig")}
+        # The bot's own sell record carries the real exit rule (caller_closed, fast_pace_sell, ...).
+        # A close filled in from the wallet must show that rule, not "wallet had already sold it".
+        bot_reason: Dict[str, str] = {}
+        try:
+            from src.observability.exec_history import get_exec_history
+            for fill in get_exec_history()._fills():
+                if (fill.side or "").upper() != "SELL" or not fill.signature:
+                    continue
+                why = str(getattr(fill, "reason", "") or "")
+                if why and not why.startswith("wallet") and str(getattr(fill, "source", "") or "") != "wallet":
+                    bot_reason[str(fill.signature)] = why.replace(" rent_back", "").strip()
+        except Exception:
+            log.debug("bot sell reasons read failed", exc_info=True)
+        healed = 0
+        for row in self.entries:
+            if row.side == "CLOSE" and row.reason == "wallet_already_sold" and bot_reason.get(str(row.signature or "")):
+                row.reason = bot_reason[str(row.signature)]
+                healed += 1
+                self._push_remote(row)
+                log.info("LEDGER %s exit reason is %s (the bot's own sell)", row.symbol, row.reason)
+        if healed:
+            self._rewrite()
         try:
             from src.observability.exec_history import get_exec_history
             for fill in get_exec_history()._fills():
@@ -1617,7 +1709,7 @@ class TradeLedger:
                 exit_sol=sold_sol,
                 exit_fee_sol=0.00001,
                 hold_seconds=max(0.0, float(last["ts"]) - opened_at),
-                reason="wallet_already_sold",
+                reason=bot_reason.get(str(last.get("sig") or ""), "wallet_already_sold"),
                 signature=str(last.get("sig") or ""),
                 source=entry.source or "",
                 since_buy_pct=entry.since_buy_pct,
@@ -1661,4 +1753,8 @@ def get_ledger() -> TradeLedger:
     global _ledger
     if _ledger is None:
         _ledger = TradeLedger()
+        try:
+            _ledger.fill_wallets_from_callers()
+        except Exception:
+            log.debug("caller wallet backfill failed", exc_info=True)
     return _ledger
