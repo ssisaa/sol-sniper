@@ -132,7 +132,7 @@ def _mark_blocked(url: str, seconds: float = 20.0, lane: str = "") -> None:
     if not host:
         return
     lane = lane or "shared"
-    if lane in ("openholds", "mayhem", "mayhemstate"):
+    if lane in ("openholds", "mayhem", "mayhemstate") or lane.startswith("mayhem2"):
         seconds = min(float(seconds), 2.0)
     key = _cool_key(host, lane)
     with _cool_lock:
@@ -356,6 +356,12 @@ def mayhem_state_get(url: str, timeout: float = 1.5) -> Any:
     return _lane_get("mayhemstate", url, timeout=timeout, cache_s=0.0)
 
 
+def mayhem2_get(url: str, lane: str = "mayhem2", timeout: float = 1.0) -> Any:
+    """Mayhem2 only. lane is mayhem2 (trades), mayhem2pos, mayhem2state or mayhem2board: each its own
+    socket, at most 2s of cooling after its own rate limit, never an old cached body."""
+    return _lane_get(lane if lane.startswith("mayhem2") else "mayhem2", url, timeout=timeout, cache_s=0.0)
+
+
 def predict_get(url: str, timeout: float = 4.0, cache_s: float = 0.0) -> Any:
     """Predict only."""
     return _lane_get("predict", url, timeout=timeout, cache_s=cache_s)
@@ -376,7 +382,7 @@ def _lane_get(lane: str, url: str, timeout: float = 3.0, cache_s: float = 0.0) -
         if hit and now - hit[0] < cache_s:
             return hit[1]
     if _cooling(url, lane):
-        if lane in ("openholds", "mayhem"):
+        if lane in ("openholds", "mayhem") or lane.startswith("mayhem2"):
             raise _blocked(url)
         with _lane_lock:
             hit = cache.get(url)
@@ -386,7 +392,7 @@ def _lane_get(lane: str, url: str, timeout: float = 3.0, cache_s: float = 0.0) -
     try:
         body = _read(url, max(0.35, float(timeout or 3.0)), lane)
     except Exception:
-        if lane not in ("openholds", "mayhem") and (cache_s > 0 or _cooling(url, lane)):
+        if lane not in ("openholds", "mayhem") and not lane.startswith("mayhem2") and (cache_s > 0 or _cooling(url, lane)):
             with _lane_lock:
                 hit = cache.get(url)
             if hit and now - hit[0] < 60.0:

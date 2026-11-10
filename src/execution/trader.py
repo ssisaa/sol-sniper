@@ -343,8 +343,8 @@ class Trader:
 
     def _tip_for_buy(self, source: str, sol_in: float, size_multiplier: float, competition, liquidity_quality: float) -> TipDecision:
         """Dayscalp and Launch pay a tiny priority fee, never a Jito tip."""
-        if source in ("dayscalp", "launch", "predict", "callout", "opencopy", "mayhem"):
-            cap = 0.00002 if source in ("dayscalp", "predict", "callout", "opencopy", "mayhem") else 0.00005
+        if source in ("dayscalp", "launch", "predict", "callout", "opencopy", "mayhem", "mayhem2"):
+            cap = 0.00002 if source in ("dayscalp", "predict", "callout", "opencopy", "mayhem", "mayhem2") else 0.00005
             log.info("BUY no tip | %s priority cap %.5f SOL", source, cap)
             return TipDecision(
                 tip_lamports=0,
@@ -439,14 +439,14 @@ class Trader:
                     )
                 opens = [p for p in self.manager.positions.values() if p.status == "OPEN" and p.mint != mint]
                 callout_ignore = set()
-                if source in ("callout", "opencopy", "mayhem"):
+                if source in ("callout", "opencopy", "mayhem", "mayhem2"):
                     from src.config.runtime import get_config
                     cap = max(1, int(getattr(get_config(), "max_concurrent", 1) or 1))
                     callout_open = [
                         p for p in self.manager.positions.values()
                         if p.status == "OPEN" and (
-                            getattr(p, "source", "") in ("callout", "opencopy", "mayhem")
-                            or getattr(p, "strategy", "") in ("callout", "opencopy", "mayhem")
+                            getattr(p, "source", "") in ("callout", "opencopy", "mayhem", "mayhem2")
+                            or getattr(p, "strategy", "") in ("callout", "opencopy", "mayhem", "mayhem2")
                         )
                     ]
                     if any(p.status == "OPEN" and p.mint == mint for p in self.manager.positions.values()):
@@ -479,12 +479,12 @@ class Trader:
                     )
                 from src.storage.supabase_store import get_store
                 book = {}
-                if source not in ("opencopy", "mayhem", "callout"):
+                if source not in ("opencopy", "mayhem", "mayhem2", "callout"):
                     book = get_store().read_book()
                 held = str((book or {}).get("mint") or "")
                 book_open = (book or {}).get("status") == "OPEN" and bool(held)
                 memory_open = any(p.status == "OPEN" and p.mint == held for p in self.manager.positions.values())
-                book_is_callout = source in ("callout", "opencopy", "mayhem") and held in callout_ignore
+                book_is_callout = source in ("callout", "opencopy", "mayhem", "mayhem2") and held in callout_ignore
                 if source != "opencopy" and book_open and memory_open and not book_is_callout:
                     reason = f"saved open trade {held[:8]} — no second buy"
                     log.warning("ACTION BUY_BLOCKED %s", reason)
@@ -571,10 +571,10 @@ class Trader:
                     )
 
         tip = self._tip_for_buy(source, sol_in, size_multiplier, competition, liquidity_quality)
-        if source not in ("dayscalp", "launch", "callout", "opencopy", "mayhem") and tip.tip_sol > sol_in * 0.15:
+        if source not in ("dayscalp", "launch", "callout", "opencopy", "mayhem", "mayhem2") and tip.tip_sol > sol_in * 0.15:
             log.info("BUY tip capped %.6f → %.6f", tip.tip_sol, sol_in * 0.15)
 
-        if source not in ("dayscalp", "launch", "callout", "opencopy", "mayhem") and tip.tip_lamports == 0 and (competition or self.default_competition) in (
+        if source not in ("dayscalp", "launch", "callout", "opencopy", "mayhem", "mayhem2") and tip.tip_lamports == 0 and (competition or self.default_competition) in (
             CompetitionLevel.HIGH,
             CompetitionLevel.EXTREME,
         ):
@@ -587,7 +587,7 @@ class Trader:
                 tip_sol=0.0, tip_reason=tip.reason,
             )
 
-        if source not in ("opencopy", "mayhem", "callout") and not self.jupiter_ok():
+        if source not in ("opencopy", "mayhem", "mayhem2", "callout") and not self.jupiter_ok():
             reason = self.jupiter_block_reason()
             log.warning("BUY wait — %s mint=%s", reason, mint[:8])
             if getattr(self, "_inflight_mint", "") == mint:
@@ -1442,7 +1442,7 @@ class Trader:
         # A −1, a caller exit, and a take-profit must not use the tight Launch ladder.
         # One Jupiter 500 used to abort the whole sell.
         urgent_out = reason in (
-            "manual_now", "callout_age", "caller_closed", "caller_drop_7", "mayhem_paused",
+            "manual_now", "callout_age", "caller_closed", "caller_drop_7", "mayhem_paused", "mayhem2_sell", "mayhem2_paused",
         ) or str(reason).startswith("tp_") or str(reason).startswith("take_profit")
         open_pos = next((p for p in self.manager.positions.values() if p.mint == mint and p.status == "OPEN"), None)
         strategy = getattr(open_pos, "strategy", "") if open_pos else ""
@@ -1474,7 +1474,7 @@ class Trader:
                 slip_steps = [500, 1000, 1500]
         else:
             slip_steps = [3000, 5000, 7000] if reason in (
-                "manual_now", "callout_age", "caller_closed", "caller_drop_7", "mayhem_paused",
+                "manual_now", "callout_age", "caller_closed", "caller_drop_7", "mayhem_paused", "mayhem2_sell", "mayhem2_paused",
             ) or str(reason).startswith("tp_") or str(reason).startswith("take_profit") else [2000, 4000, 6000]
         sell_prio = 10_000 if cheap else 150_000
         attempt_raw = raw_amt
@@ -2129,13 +2129,13 @@ class Trader:
                 effective_price=0.0, fees_sol=0.0, error="no_pubkey",
                 latency_ms=(time.perf_counter() - t0) * 1000,
             )
-        if source in ("callout", "opencopy", "mayhem"):
+        if source in ("callout", "opencopy", "mayhem", "mayhem2"):
             from src.config.runtime import get_config
             cap = max(1, int(getattr(get_config(), "max_concurrent", 1) or 1))
             live_open = [p for p in self.manager.positions.values() if p.status == "OPEN"]
             foreign = [
                 p for p in live_open
-                if getattr(p, "source", "") not in ("callout", "opencopy", "mayhem") and getattr(p, "strategy", "") not in ("callout", "opencopy", "mayhem")
+                if getattr(p, "source", "") not in ("callout", "opencopy", "mayhem", "mayhem2") and getattr(p, "strategy", "") not in ("callout", "opencopy", "mayhem", "mayhem2")
             ]
             same = [p for p in live_open if p.mint == mint]
             callouts = [p for p in live_open if p not in foreign]
@@ -2148,7 +2148,7 @@ class Trader:
                 effective_price=0.0, fees_sol=0.0, error="already_holding",
                 latency_ms=(time.perf_counter() - t0) * 1000,
             )
-        if source in ("callout", "opencopy", "mayhem"):
+        if source in ("callout", "opencopy", "mayhem", "mayhem2"):
             if self.manager.is_paused():
                 return FillResult(
                     ok=False, mode="live", mint=mint, sol_in=sol_in, tokens_out=0.0,
@@ -2189,7 +2189,7 @@ class Trader:
         prio_lamports = max(50_000, min(prio_lamports, int(self.tip_model.absolute_max_tip_sol * 1_000_000_000)))
         slip = max(self.slippage_bps, 300)
         fee_sol = 0.0
-        if source in ("dayscalp", "predict", "callout", "opencopy", "mayhem"):
+        if source in ("dayscalp", "predict", "callout", "opencopy", "mayhem", "mayhem2"):
             prio_lamports = 20_000
             slip = 200
             fee_sol = 0.00002
@@ -2278,7 +2278,7 @@ class Trader:
         elif not sig and pump_why:
             log.info("BUY pump skipped mint=%s why=%s — Jupiter", mint[:8], pump_why or "empty")
         if not sig:
-            if source in ("opencopy", "mayhem", "callout"):
+            if source in ("opencopy", "mayhem", "mayhem2", "callout"):
                 ok_rt, rt_back = True, 0.0
             else:
                 ok_rt, rt_back = await self._round_trip_ok(mint, attempt_sol, source)
@@ -2463,6 +2463,13 @@ class Trader:
         fast=True is the Local PumpPortal buy and sell. The simulation wait is
         capped at a quarter second, then the same tx is broadcast.
         """
+        # Check with simulateTransaction first, as its own call. A sendTransaction whose preflight
+        # failed was still forwarded once by the RPC provider and landed as a failed tx with a fee
+        # (5o97…, 23:37:58, Jupiter 6001 slippage). A tx that fails this check is never sent at all.
+        sim_err = await self._simulate_first(signed_b64, 0.9 if fast else 1.5)
+        if sim_err:
+            log.warning("SEND not broadcast — simulateTransaction says it fails, nothing sent, no fee (%s)", sim_err[:140])
+            return None, sim_err
         sent, err = await self._rpc_send_with_err(
             signed_b64, skip_preflight=False, paid=True, paid_only=True, timeout=3.0 if fast else 4.0,
         )
@@ -2476,6 +2483,49 @@ class Trader:
         # doomed buys reached the chain and paid a fee each. Do not: the caller can try again.
         log.warning("SEND not broadcast — the check did not answer, nothing sent, no fee (%s)", str(err or "")[:140])
         return None, err or "send_unchecked"
+
+    async def _simulate_first(self, signed_b64: str, timeout: float) -> str:
+        """simulateTransaction on the paid RPC chain (first that answers). Returns an error text in the
+        same shape the RPC uses for a failed preflight ("Transaction simulation failed: … custom program
+        error: 0x1771") when the tx would fail, else "". No answer is "" (the send keeps its own check)."""
+        import json
+        try:
+            from src.execution.rpc_pool import healthy_paid
+            chain = healthy_paid()[:2] or ([self._paid_rpc()] if self._paid_rpc() else [])
+        except Exception:
+            chain = [self._paid_rpc()] if self._paid_rpc() else []
+        body = {"jsonrpc": "2.0", "id": 1, "method": "simulateTransaction",
+                "params": [signed_b64, {"encoding": "base64", "commitment": "processed",
+                                        "sigVerify": False, "replaceRecentBlockhash": False}]}
+        from src.execution.tx_route import rpc_post
+        for url in chain:
+            if not url:
+                continue
+            try:
+                status, text = await asyncio.to_thread(rpc_post, url, body, timeout, False)
+                if status != 200:
+                    continue
+                data = json.loads(text or "{}")
+            except Exception:
+                continue
+            value = ((data or {}).get("result") or {}).get("value")
+            if not isinstance(value, dict):
+                continue
+            err = value.get("err")
+            if not err:
+                return ""
+            if isinstance(err, str) and "blockhash" in err.lower():
+                return ""            # stale view on this node: let the send's own check decide
+            code = ""
+            try:
+                inner = err.get("InstructionError")[1] if isinstance(err, dict) else None
+                if isinstance(inner, dict) and "Custom" in inner:
+                    n = int(inner["Custom"])
+                    code = f" custom program error: 0x{n:x} ({n})"
+            except Exception:
+                code = ""
+            return f"Transaction simulation failed: {json.dumps(err)}{code}"
+        return ""
 
     async def _rpc_send_with_err(self, signed_b64: str, skip_preflight: bool = True, paid: bool = False, paid_only: bool = False, timeout: float = 4.0):
         """Send a signed tx. Returns (signature, error). error is None on success.

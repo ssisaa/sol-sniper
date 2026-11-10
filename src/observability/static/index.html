@@ -176,6 +176,7 @@ td{padding:8px 6px;border-bottom:1px solid rgba(120,160,210,.08);vertical-align:
 #view-callouts.view.on,
 #view-openholds.view.on,
 #view-mayhem.view.on,
+#view-mayhem2.view.on,
 #view-livetrades.view.on{
   display:flex;flex-direction:column;height:calc(100vh - 68px);min-height:0;overflow:hidden;
 }
@@ -188,6 +189,7 @@ td{padding:8px 6px;border-bottom:1px solid rgba(120,160,210,.08);vertical-align:
 #view-callouts .page,
 #view-openholds .page,
 #view-mayhem .page,
+#view-mayhem2 .page,
 #view-livetrades .page{
   flex:1;display:flex;flex-direction:column;min-height:0;width:100%;
 }
@@ -200,9 +202,51 @@ td{padding:8px 6px;border-bottom:1px solid rgba(120,160,210,.08);vertical-align:
 #view-callouts .page > .card,
 #view-openholds .page > .card,
 #view-mayhem .page > .card,
+#view-mayhem2 .page > .card,
 #view-livetrades .page > .card{
   flex:1;display:flex;flex-direction:column;min-height:0;
 }
+.navbtn[hidden]{display:none!important}
+#view-mayhem2 .m2-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}
+#view-mayhem2 .m2-who{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+#view-mayhem2 .m2-who h2{margin:0}
+#view-mayhem2 .m2-who a{font-weight:800;color:var(--blue,#6cb6ff);text-decoration:none}
+#view-mayhem2 .m2-pill{padding:3px 10px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.04em;border:1px solid rgba(138,160,184,.35);color:var(--muted,#8aa0b8)}
+#view-mayhem2 .m2-pill.on{color:#042016;background:#3ee0a0;border-color:#3ee0a0}
+#view-mayhem2 .m2-pill.off{color:#f0b43c;border-color:rgba(240,180,60,.55)}
+#view-mayhem2 .m2-pill.bad{color:#fff;background:#d9534f;border-color:#d9534f}
+#view-mayhem2 .m2-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:12px;margin-bottom:12px}
+@media (max-width:900px){#view-mayhem2 .m2-grid{grid-template-columns:1fr}}
+#view-mayhem2 .m2-box{padding:10px 12px;border:1px solid rgba(120,160,210,.2);border-radius:12px;background:rgba(14,22,36,.55);min-width:0}
+#view-mayhem2 .m2-box h3{margin:0 0 8px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#8aa0b8)}
+#view-mayhem2 .m2-pin.live{border-color:rgba(62,224,160,.55);background:rgba(20,48,38,.45)}
+#view-mayhem2 .m2-coin{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+#view-mayhem2 .m2-coin img{width:44px;height:44px;border-radius:10px;object-fit:cover;background:#0b1220}
+#view-mayhem2 .m2-coin .sym{font-size:22px;font-weight:800}
+#view-mayhem2 .m2-coin .nm{color:var(--muted,#8aa0b8);font-size:13px}
+#view-mayhem2 .m2-kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-top:10px}
+#view-mayhem2 .m2-kv div{padding:6px 10px;border-radius:10px;border:1px solid rgba(120,160,210,.16);background:rgba(8,14,24,.5)}
+#view-mayhem2 .m2-kv span{display:block;font-size:11px;color:var(--muted,#8aa0b8)}
+#view-mayhem2 .m2-kv b{font-size:16px;font-variant-numeric:tabular-nums}
+#view-mayhem2 .g{color:#3ee0a0}
+#view-mayhem2 .r{color:var(--red,#ff6b6b)}
+#view-mayhem2 .w{color:#f0b43c}
+#view-mayhem2 .m2-sig{margin:0;padding:0;list-style:none;display:grid;gap:3px;max-height:170px;overflow:auto}
+#view-mayhem2 .m2-sig li{display:grid;grid-template-columns:62px 48px 1fr auto;gap:8px;font-size:12px;align-items:baseline;font-variant-numeric:tabular-nums}
+#view-mayhem2 .m2-sig .side{font-weight:800}
+#view-mayhem2 .m2-notes{margin:0;padding:0;list-style:none;display:grid;gap:3px;max-height:150px;overflow:auto}
+#view-mayhem2 .m2-notes li{display:flex;gap:10px;font-size:12px;align-items:baseline}
+#view-mayhem2 .m2-notes .t{color:var(--muted,#8aa0b8);font-variant-numeric:tabular-nums;white-space:nowrap}
+#view-mayhem2 .m2-notes li.warn .m{color:#f0b43c}
+#view-mayhem2 .m2-notes li.buy .m,#view-mayhem2 .m2-notes li.ok .m{color:#3ee0a0}
+#view-mayhem2 .m2-notes li.sell .m{color:#6cb6ff}
+#view-mayhem2 table{width:100%}
+#view-mayhem2 td,#view-mayhem2 th{font-variant-numeric:tabular-nums;white-space:nowrap}
+#view-mayhem2 tr.pin{background:rgba(61,214,140,.14)}
+#view-mayhem2 tr.pin td:first-child{box-shadow:inset 3px 0 0 #3ee0a0}
+#view-mayhem2 tr.dim td{opacity:.55}
+#view-mayhem2 .m2-help{margin:0 0 10px;font-size:12px;color:var(--muted,#8aa0b8)}
+#view-mayhem2 .m2-help summary{cursor:pointer;font-weight:700}
 .page .scroll{flex:1;min-height:0;max-height:none;overflow:auto}
 .page .scroll th{position:sticky;top:0;background:#101722;z-index:2}
 #view-openholds .oh-user,#view-mayhem .oh-user{text-align:center;font-size:22px;font-weight:800;letter-spacing:.04em;margin:18px 0 8px}
@@ -470,7 +514,8 @@ button.lite:hover{color:#fff;border-color:#eef3fb}
       <button type="button" class="navbtn" data-view="callouts">CallOuts</button>
       <button type="button" class="navbtn" data-view="openholds">OpenHolds</button>
       <button type="button" class="navbtn" data-view="livetrades">Live Trades</button>
-      <button type="button" class="navbtn" data-view="predict">Predict</button>
+      <button type="button" class="navbtn" data-view="predict" id="navPredict" hidden>Predict</button>
+      <button type="button" class="navbtn" data-view="mayhem2" id="navMayhem2">Mayhem2</button>
       <button type="button" class="navbtn" data-view="settings">Settings</button>
     </nav>
     <div class="head-tools">
@@ -547,6 +592,7 @@ button.lite:hover{color:#fff;border-color:#eef3fb}
       <option value="callout">callout (CallOuts OPEN only)</option>
       <option value="opencopy">opencopy (OpenHolds only)</option>
       <option value="mayhem">mayhem (MayhemMode · Mayhem_Mode only)</option>
+      <option value="mayhem2">mayhem2 (Mayhem2 · copy Mayhem_Mode BUY/SELL, one coin)</option>
     </select>
     <label class="field">Max position (SOL)</label>
     <input id="cfg_max_position_sol" type="number" step="0.001" min="0.001" title="SOL per buy. Also sets Fast Pace max position."/>
@@ -769,6 +815,13 @@ button.lite:hover{color:#fff;border-color:#eef3fb}
           <input id="set_launch" type="checkbox"/>
         </label>
         <p class="hint">Pump create scan. Age, volume, and the 1-second candle stay as they are. Off means Launch places no new buy.</p>
+      </div>
+      <div class="card">
+        <h2>Header</h2>
+        <label class="set-switch">Show Mayhem2 (off shows Predict)
+          <input id="set_mayhem2_header" type="checkbox" checked/>
+        </label>
+        <p class="hint">Checked: the top bar shows Mayhem2 and hides Predict. Unchecked: Predict comes back and Mayhem2 is hidden. Only the header changes; the source in Live Controls is not touched.</p>
       </div>
       <div class="card">
         <h2>Predict</h2>
@@ -1007,6 +1060,44 @@ button.lite:hover{color:#fff;border-color:#eef3fb}
             <th>Call</th><th>Status</th><th>AgeOpened</th><th>Wallet $</th><th>Links</th><th>Trade</th>
           </tr></thead>
           <tbody id="calloutBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="view-mayhem2" class="view" data-view="mayhem2">
+  <div class="page">
+    <div class="card">
+      <div class="m2-head">
+        <div class="m2-who">
+          <h2>Mayhem2</h2>
+          <a href="https://pump.fun/profile/BwWK17cbHxwWBKZkUYvzxLcNQ1YVyaFezduWbtm2de6s" target="_blank" rel="noopener">Mayhem_Mode ↗</a>
+          <span class="m2-pill" id="m2Source">source …</span>
+          <span class="m2-pill" id="m2Board">board …</span>
+          <span class="m2-pill" id="m2Max">max …</span>
+        </div>
+      </div>
+      <details class="m2-help"><summary>How Mayhem2 works</summary>
+        Pick <b>mayhem2</b> in Live Controls and turn Auto Trade on. Every 0.8s the bot reads pump's Mayhem board and lists the pump coins younger than 3 minutes that are active. For each one it reads Mayhem_Mode's position (unrealized $ and %). It pins the youngest active coin Mayhem_Mode is holding, one coin at a time. On the pinned coin it reads Mayhem_Mode's trades every 0.25s and also watches them on-chain. When Mayhem_Mode <b>BUYS</b>, the bot buys Max position (if it is not already holding). When Mayhem_Mode <b>SELLS</b>, the bot sells 100%. Only trades made after the pin count. Each signal acts once: more BUYs are ignored while the bot is buying, holding or selling, and after the coins are sold the next BUY buys again. <b>Selling for profit:</b> on Mayhem_Mode's SELL the bot sells at once only if the trade is at least +3% (a real profit after the ~2% sell fee); otherwise it waits up to 10s for +3%, then sells anyway. Without any signal it also sells at +20% (take profit), when half of a gain over +10% is gone (trail), at −15% (stop), and after 25s held (half of Mayhem coins pause by ~34s and a paused coin often cannot be sold). These exits run even with Auto Trade off. In parallel it checks the coin's mayhem-state every 0.5s. <b>Paused</b> or <b>completed</b>, or Mayhem_Mode no longer holding the coin, sells what the bot holds, unpins it, and moves to the next new coin. A coin is never pinned twice. Every buy and sell pays fees, so each copied round trip costs about 2% plus network fees.
+      </details>
+      <div class="m2-grid">
+        <div class="m2-box m2-pin" id="m2Pin"><h3>Pinned</h3><div class="muted">Waiting for the board…</div></div>
+        <div class="m2-box">
+          <h3>Mayhem_Mode trades on the pin <span class="muted" id="m2SigN"></span></h3>
+          <ul class="m2-sig" id="m2Sig"></ul>
+        </div>
+      </div>
+      <div class="m2-box" style="margin-bottom:12px">
+        <h3>Messages <span class="muted" id="m2NotesN"></span></h3>
+        <ul class="m2-notes" id="m2Notes"></ul>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr>
+            <th>Coin</th><th>Name</th><th>Age</th><th>State</th><th>MC $</th><th>Tx 5m</th>
+            <th>MM held</th><th>Unrealized $</th><th>%</th><th>Status</th><th>Links</th>
+          </tr></thead>
+          <tbody id="m2Body"></tbody>
         </table>
       </div>
     </div>
@@ -1304,7 +1395,7 @@ function execWhy(e, side){
   if(side==='SENT'){ const to=r.replace(/^sent_to:/,''); return '⚠ SOL sent out of this wallet to '+(to?to.slice(0,6)+'…'+to.slice(-4):'another wallet')+' — not a trade, not a fee'; }
   if(side==='RECEIVED'){ const fr=r.replace(/^received_from:/,''); return 'SOL received from '+(fr?fr.slice(0,6)+'…'+fr.slice(-4):'another wallet'); }
   if(String(e.source||'')==='bot'){
-    const label={callout:'Callout buy',opencopy:'OpenCopy buy',mayhem:'Mayhem buy',predict:'Predict buy',entry:'Bot buy',buy:'Bot buy'}[r];
+    const label={callout:'Callout buy',opencopy:'OpenCopy buy',mayhem:'Mayhem buy',mayhem2:'Mayhem2 buy',predict:'Predict buy',entry:'Bot buy',buy:'Bot buy'}[r];
     if(label) return label;
     return plainWhy(r);
   }
@@ -1404,6 +1495,8 @@ function plainWhy(code){
   if(raw==='m5_null') return '5m percent was null';
   if(raw==='manual_now') return 'Sold with the −1 button';
   if(raw==='mayhem_paused') return 'Mayhem paused — pump paused this coin, sold';
+  if(raw==='mayhem2_sell') return 'Mayhem2 — Mayhem_Mode sold, the bot sold';
+  if(raw==='mayhem2_paused') return 'Mayhem2 — coin paused or Mayhem_Mode closed it, sold';
   if(raw==='caller_closed') return 'Caller sold — the copy followed the caller out';
   if(raw==='fast_pace_sell') return 'Fast Pace target hit';
   if(raw==='copy_stop') return 'Copy stop-loss hit';
@@ -1627,6 +1720,7 @@ function srcName(s){
   if(v==='predict') return 'Predict';
   if(v==='opencopy') return 'opencopy';
   if(v==='mayhem') return 'mayhem';
+  if(v==='mayhem2') return 'mayhem2';
   if(v==='callout') return 'callout';
   if(v==='wallet_resume'||v==='wallet_reconcile'||v==='ledger_restore') return '—';
   return s?String(s):'—';
@@ -1751,7 +1845,7 @@ function paintHistory(entries){
     return;
   }
   body.innerHTML=events.map(e=>{
-    const copySrc=['callout','opencopy','mayhem'].includes(String(e.src||'').toLowerCase());
+    const copySrc=['callout','opencopy','mayhem','mayhem2'].includes(String(e.src||'').toLowerCase());
     const callUser=!copySrc?'<span class="muted">-</span>'
       :(!e.user?'<span class="muted" title="Bought before CallUser was recorded">not recorded</span>'
         :(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(String(e.wallet||''))
@@ -2110,7 +2204,7 @@ function paintLiveTrades(open, nextPct){
     const lowN=p.low_pct==null||p.low_pct===''?null:Number(p.low_pct);
     const low=(lowN==null||!isFinite(lowN))?'…':((lowN>=0?'+':'')+lowN.toFixed(2)+'%');
     const pnl=p.priced && p.pnl_sol!=null?Number(p.pnl_sol):null;
-    const callout=p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy'||p.strategy==='mayhem'||p.source==='mayhem';
+    const callout=p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy'||p.strategy==='mayhem'||p.source==='mayhem'||p.strategy==='mayhem2'||p.source==='mayhem2';
     const holdState = String(p.user_holds||'');
     const userHolds = !callout
       ? '—'
@@ -2231,7 +2325,7 @@ function patchLiveCard(body, p){
   const ath=p.peak_pct==null?'…':((Number(p.peak_pct)>=0?'+':'')+Number(p.peak_pct).toFixed(2)+'%');
   const lowN=p.low_pct==null||p.low_pct===''?null:Number(p.low_pct);
   const low=(lowN==null||!isFinite(lowN))?'…':((lowN>=0?'+':'')+lowN.toFixed(2)+'%');
-  const callout=p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy'||p.strategy==='mayhem'||p.source==='mayhem';
+  const callout=p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy'||p.strategy==='mayhem'||p.source==='mayhem'||p.strategy==='mayhem2'||p.source==='mayhem2';
   const usdTone=book.usdN==null?'':(book.usdN>=0?'g':'r');
   const usdSub=(callout || book.usdN!=null)?`<div class="sub ${usdTone}">USD ${book.usd}</div>`:'';
   const sinceCell='<span class="'+(book.solCellN==null?'':(book.solCellN>=0?'g':'r'))+'">SOL '+book.solCell+'</span>'+((callout || book.usdN!=null)?('<span class="'+usdTone+'" style="display:block;font-size:12px;margin-top:3px">USD '+book.usd+'</span>'):'');
@@ -2321,7 +2415,7 @@ function renderPos(snap){
     : null;
   const mineTxt = mine==null ? '…' : ((mine>=0?'+':'')+mine.toFixed(2)+'%');
   const predictOpen = p.strategy==='predict' || p.source==='predict' || p.quick_entry;
-  const isCopy = p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy'||p.strategy==='mayhem'||p.source==='mayhem';
+  const isCopy = p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy'||p.strategy==='mayhem'||p.source==='mayhem'||p.strategy==='mayhem2'||p.source==='mayhem2';
   const calloutOpen = isCopy;
   const nextLvl = Number.isFinite(Number(snap.callout_next_pct))?Number(snap.callout_next_pct):(Number.isFinite(Number(cfg.callout_next_pct))?Number(cfg.callout_next_pct):-25);
   const fixedStop = p.entry_m5_pct==null ? null : -Math.abs(Number(p.entry_m5_pct));
@@ -2383,7 +2477,7 @@ function renderPos(snap){
         ${row('Since buy', since)}
         ${row('Bought at', bought)}
         ${row('5m now', m5)}
-        ${row('Hard stop', (p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy'||p.strategy==='mayhem'||p.source==='mayhem')
+        ${row('Hard stop', (p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy'||p.strategy==='mayhem'||p.source==='mayhem'||p.strategy==='mayhem2'||p.source==='mayhem2')
           ? ('No hard stop · next trade at '+nextLvl+'%')
           : ((p.strategy==='predict'||p.source==='predict'||p.quick_entry)
           ? (p.entry_m5_pct==null ? 'Fixed from the 5m at open · not in yet' : 'Sells when Pump 5m reaches '+(-Math.abs(Number(p.entry_m5_pct))).toFixed(2)+'% · fixed at open')
@@ -2421,7 +2515,7 @@ function renderPos(snap){
     const sl=p.stop_pct==null?'—':`${(Number(p.stop_pct)*100).toFixed(0)}%`;
     const hard=p.hard_stop_pct==null?'—':`${(Number(p.hard_stop_pct)*100).toFixed(0)}%`;
     const predictOpen = p.strategy==='predict' || p.source==='predict' || p.quick_entry;
-    const calloutOpen = p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy'||p.strategy==='mayhem'||p.source==='mayhem';
+    const calloutOpen = p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy'||p.strategy==='mayhem'||p.source==='mayhem'||p.strategy==='mayhem2'||p.source==='mayhem2';
     const hardStopTxt = calloutOpen
       ? `No hard stop · next new trade at ${nextLvl}%`
       : predictOpen
@@ -3727,8 +3821,87 @@ async function loadPredict(){
     paintPredict([], 'predict failed');
   }
 }
+// ---------- Mayhem2 ----------
+let _m2Busy=false, _m2Sig={};
+function m2Num(v,d){ v=Number(v); return Number.isFinite(v)?v.toFixed(d):'—'; }
+function m2Usd(v){ v=Number(v); if(!Number.isFinite(v)) return '—'; const a=Math.abs(v); return (v<0?'-$':'$')+(a>=1000?a.toFixed(0):a.toFixed(2)); }
+function m2Pct(v){ v=Number(v); if(!Number.isFinite(v)) return '—'; return (v>0?'+':'')+v.toFixed(2)+'%'; }
+function m2Cls(v){ v=Number(v); return !Number.isFinite(v)||v===0?'':(v>0?'g':'r'); }
+function m2Held(v){ v=Number(v); if(!Number.isFinite(v)) return '—'; if(v>=1e9) return (v/1e9).toFixed(2)+'B'; if(v>=1e6) return (v/1e6).toFixed(1)+'M'; if(v>=1e3) return (v/1e3).toFixed(1)+'K'; return v.toFixed(0); }
+function m2Clock(ts){ const d=new Date((ts||0)*1000); return d.toTimeString().slice(0,8); }
+function m2Set(id, html){ const el=document.getElementById(id); if(!el) return; if(_m2Sig[id]===html) return; _m2Sig[id]=html; el.innerHTML=html; }
+async function loadMayhem2(){
+  if(_m2Busy) return;
+  _m2Busy=true;
+  try{
+    const r=await fetch('/api/mayhem2',{cache:'no-store'});
+    paintMayhem2(await r.json());
+  }catch(e){
+    m2Set('m2Pin','<h3>Pinned</h3><div class="w">Could not reach the bot.</div>');
+  }finally{ _m2Busy=false; }
+}
+function paintMayhem2(d){
+  d=d||{};
+  const src=document.getElementById('m2Source');
+  if(src){
+    src.textContent=d.trading?'MAYHEM2 TRADING':(d.on?'MAYHEM2 · AUTO TRADE OFF':'SOURCE NOT MAYHEM2');
+    src.className='m2-pill '+(d.trading?'on':'off');
+  }
+  const bd=document.getElementById('m2Board');
+  if(bd){
+    const age=d.boardAge;
+    bd.textContent=d.error?('board error'):(age==null?'board …':(age>3?('board STALE '+age.toFixed(0)+'s'):'board live'));
+    bd.className='m2-pill '+(d.error||(age!=null&&age>3)?'bad':'on');
+    bd.title=d.error||'';
+  }
+  const mx=document.getElementById('m2Max');
+  if(mx) mx.textContent='max '+m2Num(d.maxPos,4)+' SOL';
+  const pin=d.pin;
+  if(!pin){
+    m2Set('m2Pin','<h3>Pinned</h3><div class="muted">No coin pinned. Waiting for an active Mayhem coin under 3 minutes that Mayhem_Mode holds.</div>');
+  }else{
+    const row=(d.rows||[]).find(x=>x.pinned)||{};
+    const bot=pin.bot;
+    const st=String(pin.state||row.state||'');
+    const want=pin.exiting?'<b class="r">SELLING</b>':(pin.waitProfit!=null?`<b class="w">SELL · waiting ${Math.max(0,pin.waitProfit).toFixed(0)}s for profit</b>`:(pin.busy==='buy'?'<b class="w">BUYING…</b>':(pin.want==='buy'?'<b class="g">BUY</b>':(pin.want==='sell'?'<b class="r">SELL</b>':'<span class="muted">waiting</span>'))));
+    const botTxt=bot?(`<b class="${m2Cls(bot.pct)}">${bot.selling?'SELLING · ':''}${m2Pct(bot.pct)}</b>`):'<b class="muted">FLAT</b>';
+    const img=pin.image?`<img src="${escapeHtml(pin.image)}" alt="" loading="lazy" onerror="this.remove()">`:'';
+    m2Set('m2Pin',`<h3>Pinned · ${m2Num(pin.pinnedFor,0)}s</h3>
+      <div class="m2-coin">${img}<div><div class="sym">${escapeHtml(pin.symbol||'—')}</div><div class="nm">${escapeHtml(pin.name||'')} · <a href="https://pump.fun/coin/${escapeHtml(pin.mint)}" target="_blank" rel="noopener">${escapeHtml(String(pin.mint).slice(0,6))}…</a></div></div>
+      <span class="m2-pill ${st==='active'?'on':(st==='paused'?'bad':'')}">${escapeHtml(st||'state …')}</span></div>
+      <div class="m2-kv">
+        <div><span>Mayhem_Mode unrealized</span><b class="${m2Cls(row.pnlUsd)}">${m2Usd(row.pnlUsd)}</b></div>
+        <div><span>Mayhem_Mode %</span><b class="${m2Cls(row.pnlPercentage)}">${m2Pct(row.pnlPercentage)}</b></div>
+        <div><span>MM held</span><b>${m2Held(row.held)}</b></div>
+        <div><span>Last signal</span>${want}</div>
+        <div><span>Bot</span>${botTxt}</div>
+        <div><span>Bot in</span><b>${bot?m2Num(bot.sol,4)+' SOL':'—'}</b></div>
+      </div>`);
+    const box=document.getElementById('m2Pin'); if(box) box.classList.toggle('live', !!bot);
+  }
+  const sigs=d.signals||[];
+  const n=document.getElementById('m2SigN'); if(n) n.textContent=sigs.length?('· '+sigs.length):'';
+  m2Set('m2Sig', sigs.length?sigs.map(s=>`<li><span class="muted">${m2Clock(s.ts)}</span><span class="side ${s.side==='buy'?'g':'r'}">${String(s.side).toUpperCase()}</span><span>${s.sol!=null?m2Num(s.sol,3)+' SOL':''}${s.usd!=null?' · '+m2Usd(s.usd):''}</span><span class="muted">${escapeHtml(s.src||'')} ${s.seen&&s.ts?'+'+Math.max(0,s.seen-s.ts).toFixed(1)+'s':''}${s.act?' · <b class="'+(/sent/.test(s.act)?'g':(/wait/.test(s.act)?'w':''))+'">'+escapeHtml(s.act)+'</b>':''}</span></li>`).join(''):'<li class="muted">No Mayhem_Mode trade since the pin yet.</li>');
+  const notes=d.notes||[];
+  const nn=document.getElementById('m2NotesN'); if(nn) nn.textContent=notes.length?('· '+notes.length):'';
+  m2Set('m2Notes', notes.length?notes.map(x=>`<li class="${escapeHtml(x.level||'')}"><span class="t">${m2Clock(x.ts)}</span><span class="m">${escapeHtml(x.m||'')}${x.n>1?' ×'+x.n:''}</span></li>`).join(''):'<li class="muted">None yet.</li>');
+  const rows=d.rows||[];
+  m2Set('m2Body', rows.length?rows.map(x=>{
+    const st=String(x.state||'');
+    const status=x.pinned?'<b class="g">PINNED</b>':(x.used?`<span class="muted">${escapeHtml(x.used)}</span>`:(st!=='active'?'<span class="muted">not active</span>':(Number(x.held)>0?'candidate':'<span class="muted">MM not holding</span>')));
+    return `<tr class="${x.pinned?'pin':(st!=='active'||x.used?'dim':'')}">
+      <td><b>${escapeHtml(x.symbol||'—')}</b></td><td>${escapeHtml(String(x.name||'').slice(0,22))}</td>
+      <td>${x.age==null?'—':m2Num(x.age,0)+'s'}</td>
+      <td class="${st==='active'?'g':(st==='paused'?'r':'')}">${escapeHtml(st||'—')}</td>
+      <td>${m2Usd(x.mcUsd)}</td><td>${x.tx5==null?'—':escapeHtml(String(x.tx5))}</td>
+      <td>${m2Held(x.held)}</td>
+      <td class="${m2Cls(x.pnlUsd)}">${m2Usd(x.pnlUsd)}</td><td class="${m2Cls(x.pnlPercentage)}">${m2Pct(x.pnlPercentage)}</td>
+      <td>${status}</td>
+      <td><a href="https://pump.fun/coin/${escapeHtml(x.mint)}" target="_blank" rel="noopener">pump ↗</a></td></tr>`;
+  }).join(''):'<tr><td colspan="11" class="muted">No pump Mayhem coin under 3 minutes right now.</td></tr>');
+}
 function showView(name){
-  const views=['dash','ledger','history','exec','coins','mayhem','decoded','callouts','openholds','livetrades','predict','settings'];
+  const views=['dash','ledger','history','exec','coins','mayhem','mayhem2','decoded','callouts','openholds','livetrades','predict','settings'];
   if(!views.includes(name)) name='dash';
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on', v.dataset.view===name));
   document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('on', b.dataset.view===name));
@@ -3737,6 +3910,11 @@ function showView(name){
   if(window._openHoldsTimer){ clearInterval(window._openHoldsTimer); window._openHoldsTimer=null; }
   if(window._predictTimer){ clearInterval(window._predictTimer); window._predictTimer=null; }
   if(window._mayhemTimer){ clearInterval(window._mayhemTimer); window._mayhemTimer=null; }
+  if(window._m2Timer){ clearInterval(window._m2Timer); window._m2Timer=null; }
+  if(name==='mayhem2'){
+    loadMayhem2();
+    window._m2Timer=setInterval(loadMayhem2, 250);
+  }
   if(name==='mayhem'){
     loadMayhem();
     window._mayhemTimer=setInterval(loadMayhem, 250);
@@ -3864,6 +4042,11 @@ function paintSettings(c){
   if(launch && c.launch_enabled!=null && document.activeElement!==launch) launch.checked=!!c.launch_enabled;
   if(ds && c.dayscalp_enabled!=null && document.activeElement!==ds) ds.checked=!!c.dayscalp_enabled;
   if(pred && c.predict_enabled!=null && document.activeElement!==pred) pred.checked=!!c.predict_enabled;
+  const m2h=document.getElementById('set_mayhem2_header');
+  if(c.mayhem2_header!=null){
+    if(m2h && document.activeElement!==m2h) m2h.checked=!!c.mayhem2_header;
+    applyHeader(!!c.mayhem2_header);
+  }
   if(rug && c.rugcheck_enabled!=null && document.activeElement!==rug) rug.checked=!!c.rugcheck_enabled;
   if(m5 && document.activeElement!==m5 && !m5.dataset.dirty && c.min_m5_pct!=null){
     m5.value=Number(c.min_m5_pct);
@@ -3965,6 +4148,21 @@ if(setLaunch) setLaunch.onchange=()=>{
 const setDs=document.getElementById('set_dayscalp');
 if(setDs) setDs.onchange=()=>{
   sendSetting({dayscalp_enabled:setDs.checked}, 'Dayscalp', setDs.checked?'On':'Off');
+};
+function applyHeader(m2){
+  const a=document.getElementById('navMayhem2'), b=document.getElementById('navPredict');
+  if(a) a.hidden=!m2;
+  if(b) b.hidden=!!m2;
+  try{ localStorage.setItem('m2header', m2?'1':'0'); }catch(e){}
+  const cur=(location.hash||'').slice(1);
+  if(m2 && cur==='predict') showView('mayhem2');
+  if(!m2 && cur==='mayhem2') showView('predict');
+}
+try{ const saved=localStorage.getItem('m2header'); if(saved!=null) applyHeader(saved==='1'); }catch(e){}
+const setM2Header=document.getElementById('set_mayhem2_header');
+if(setM2Header) setM2Header.onchange=()=>{
+  applyHeader(setM2Header.checked);
+  sendSetting({mayhem2_header:setM2Header.checked}, 'Header', setM2Header.checked?'Mayhem2 shown, Predict hidden':'Predict shown, Mayhem2 hidden');
 };
 const setPredict=document.getElementById('set_predict');
 if(setPredict) setPredict.onchange=()=>{
@@ -4228,6 +4426,7 @@ document.getElementById('cfg_filter_mode').onchange=()=>{
     callout_enabled: mode==='callout',
     opencopy_enabled: mode==='opencopy',
     mayhem_enabled: mode==='mayhem',
+    mayhem2_enabled: mode==='mayhem2',
   }}));
   toast({level:'buy',title:'Filter mode',message:mode+' — running this now'});
 };
@@ -4509,7 +4708,7 @@ function patchDashboardPnl(p){
   const cls=up?'g':down?'r':'';
   const pnl=p.priced && p.pnl_sol!=null?Number(p.pnl_sol):null;
   const pnlTxt=pnl==null?'…':((pnl>=0?'+':'')+pnl.toFixed(4)+' SOL');
-  const callout=p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy'||p.strategy==='mayhem'||p.source==='mayhem';
+  const callout=p.strategy==='callout'||p.source==='callout'||p.strategy==='opencopy'||p.source==='opencopy'||p.strategy==='mayhem'||p.source==='mayhem'||p.strategy==='mayhem2'||p.source==='mayhem2';
   const held=document.querySelector('#heldBox [data-mint="'+CSS.escape(p.mint)+'"]');
   if(held){
     const pct=held.querySelector('[data-k="heldpct"]');

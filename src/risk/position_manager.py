@@ -113,7 +113,7 @@ def _copy_source(pos) -> bool:
 
 
 # Hold mode keeps a Callout/OpenCopy trade until the caller sells or you sell.
-_HOLD_EXITS = ("caller_closed", "manual_now", "mayhem_paused")
+_HOLD_EXITS = ("caller_closed", "manual_now", "mayhem_paused", "mayhem2_sell", "mayhem2_paused")
 
 
 def _profit_sell_reason(reason: str) -> bool:
@@ -788,7 +788,7 @@ class PositionManager:
                                 str(reason).startswith("tp_")
                                 or str(reason).startswith("take_profit")
                                 or str(reason) in (
-                                    "caller_closed", "caller_drop_7", "callout_age", "manual_now", "mayhem_paused",
+                                    "caller_closed", "caller_drop_7", "callout_age", "manual_now", "mayhem_paused", "mayhem2_sell", "mayhem2_paused",
                                     "fast_pace_sell", "copy_stop", "trailing_stop",
                                 )
                                 or "stop" in str(reason)
@@ -819,7 +819,7 @@ class PositionManager:
                         str(reason).startswith("tp_")
                         or str(reason).startswith("take_profit")
                         or "stop" in str(reason)
-                        or str(reason) in ("caller_closed", "caller_drop_7", "callout_age", "manual_now", "mayhem_paused")
+                        or str(reason) in ("caller_closed", "caller_drop_7", "callout_age", "manual_now", "mayhem_paused", "mayhem2_sell", "mayhem2_paused")
                     )
                     wait = 2.0 if urgent else 30.0
                     self._sell_cooldown[pos.mint] = time.time() + wait
@@ -832,7 +832,7 @@ class PositionManager:
                         str(reason).startswith("tp_")
                         or str(reason).startswith("take_profit")
                         or "stop" in str(reason)
-                        or str(reason) in ("caller_closed", "caller_drop_7", "callout_age", "manual_now", "mayhem_paused")
+                        or str(reason) in ("caller_closed", "caller_drop_7", "callout_age", "manual_now", "mayhem_paused", "mayhem2_sell", "mayhem2_paused")
                     )
                     wait = 1.0 if urgent else 10.0
                     self._sell_cooldown[pos.mint] = time.time() + wait
@@ -859,7 +859,7 @@ class PositionManager:
     async def sell_source_now(self, source: str) -> Dict[str, Any]:
         """Sell every open trade of the Live Control source. 100%, even at a loss."""
         source = str(source or "").strip().lower()
-        if source not in ("launch", "dayscalp", "predict", "callout", "opencopy", "mayhem"):
+        if source not in ("launch", "dayscalp", "predict", "callout", "opencopy", "mayhem", "mayhem2"):
             return {
                 "ok": False,
                 "error": "Select launch, dayscalp, predict, callout, or opencopy in Live controls",
@@ -978,6 +978,29 @@ class PositionManager:
         fire_sell(pos.mint, f"mayhem_paused {getattr(pos, 'symbol', '') or pos.mint[:8]}", _urgent)
         return True
 
+    def kick_now(self, pos, reason: str) -> bool:
+        """Sell this trade in full now with this reason (Mayhem2 signal or pause). True when started."""
+        if pos is None or getattr(pos, "status", "") != "OPEN" or getattr(pos, "_sell_busy", False):
+            return False
+        pos._sell_busy = True
+        pos._sell_stopped = False
+        self._sell_cooldown.pop(pos.mint, None)
+
+        async def _urgent(p=pos) -> None:
+            try:
+                pid = next((i for i, item in self.positions.items() if item is p), None)
+                ok, exit_px = await self._maybe_sell(p, 1.0, reason, float(p.entry_price or 0))
+                if ok and pid is not None and getattr(p, "status", "") == "OPEN":
+                    await self.close_position(pid, reason, exit_price=exit_px or 0.0, frac=1.0)
+            finally:
+                p._sell_busy = False
+
+        from src.execution.fast_lane import fire_sell
+        if not fire_sell(pos.mint, f"{reason} {getattr(pos, 'symbol', '') or pos.mint[:8]}", _urgent):
+            pos._sell_busy = False      # a sell of this coin is already going out
+            return False
+        return True
+
     async def _fire_manual(self, pos) -> bool:
         """Sell this coin now. Does not wait for the exit scan."""
         if getattr(pos, "_sell_busy", False):
@@ -1047,6 +1070,9 @@ class PositionManager:
 
                 from src.execution.fast_lane import fire_sell
                 fire_sell(pos.mint, f"{why} {getattr(pos, 'symbol', '') or pos.mint[:8]}", _urgent)
+                continue
+            if "mayhem2" in (str(getattr(pos, "source", "") or ""), str(getattr(pos, "strategy", "") or "")):
+                # Mayhem2 exits only on Mayhem_Mode's SELL, a pause, or your -1 / Sell. No other rule.
                 continue
             if pos.mode == PositionMode.LIVE and not getattr(pos, "_nodust", False):
                 dead = False
@@ -1565,7 +1591,7 @@ class PositionManager:
                 prev_peak = getattr(pos, "peak_since_pct", None)
                 pos.peak_since_pct = round(max(0.0, float(prev_peak or 0), float(shown_now)), 2)
             since = getattr(pos, "since_buy_pct", None)
-            if since is None and action not in ("dust_drop", "dust_unsellable", "manual_now", "callout_age", "caller_closed", "caller_drop_7", "m5_null", "mayhem_paused"):
+            if since is None and action not in ("dust_drop", "dust_unsellable", "manual_now", "callout_age", "caller_closed", "caller_drop_7", "m5_null", "mayhem_paused", "mayhem2_sell", "mayhem2_paused"):
                 # No live price at the time stop is dust. Do not sell it.
                 limit = float(self.cfg.time_stop_seconds or 0)
                 try:

@@ -142,6 +142,10 @@ class RuntimeConfig:
     opencopy_enabled: bool = False
     # Mayhem: OpenCopy rules, but only the one caller Mayhem_Mode (MayhemMode page).
     mayhem_enabled: bool = False
+    # Mayhem2: the youngest active Mayhem coin Mayhem_Mode holds, copying its BUY / SELL trades.
+    mayhem2_enabled: bool = False
+    # Header: on shows Mayhem2 in the top bar, off shows Predict there instead.
+    mayhem2_header: bool = True
     # Percent, not a fraction. -25 means a Callout trade at -25% may open the next one.
     callout_next_pct: float = -25.0
     # First bank % or sell fraction left empty / 0: Callout and OpenCopy trades hold until the caller
@@ -308,6 +312,8 @@ def ensure_source_switches(saved: Dict[str, Any] | None = None) -> None:
         patch["callout_enabled"] = False
     if "mayhem_enabled" not in saved:
         patch["mayhem_enabled"] = cfg.filter_mode == "mayhem"
+    if "mayhem2_enabled" not in saved:
+        patch["mayhem2_enabled"] = cfg.filter_mode == "mayhem2"
     if "opencopy_enabled" not in saved:
         patch["opencopy_enabled"] = cfg.filter_mode == "opencopy"
     if "callout_next_pct" not in saved:
@@ -393,6 +399,15 @@ def mayhem_on() -> bool:
     try:
         cfg = get_config()
         return str(getattr(cfg, "filter_mode", "") or "") == "mayhem" or bool(getattr(cfg, "mayhem_enabled", False))
+    except Exception:
+        return False
+
+
+def mayhem2_on() -> bool:
+    """Mayhem2 source picked in Live Controls."""
+    try:
+        cfg = get_config()
+        return str(getattr(cfg, "filter_mode", "") or "") == "mayhem2" or bool(getattr(cfg, "mayhem2_enabled", False))
     except Exception:
         return False
 

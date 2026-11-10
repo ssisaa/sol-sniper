@@ -2113,6 +2113,17 @@ def _stream_targets():
         from src.config.runtime import MAYHEM_USER
         wallets[mayhem_wallet] = MAYHEM_USER
     mints = list(_oh_listed_mints())
+    try:
+        # Mayhem2: Mayhem_Mode's wallet and the pinned coin, so its trades arrive from the chain too.
+        from src.signal.mayhem2 import get_engine as _m2
+        m2 = _m2()
+        m2_mints = m2.stream_mints()
+        if m2_mints or m2.active():
+            from src.config.runtime import MAYHEM_USER, MAYHEM_WALLET
+            wallets.setdefault(MAYHEM_WALLET, MAYHEM_USER)
+        mints = [m for m in m2_mints if m] + [m for m in mints if m not in m2_mints]
+    except Exception:
+        pass
     # CallOuts coins too, so their PnL moves on every trade. Socket only (free); the paid-RPC
     # curve read still covers just the OpenHolds coins.
     with _callout_lock:
@@ -4073,6 +4084,10 @@ def start_http_static_server(port: int = DEFAULT_HTTP_PORT) -> ThreadingHTTPServ
                 return
             if path == "/api/mayhem":
                 self._json(200, mayhem_snapshot())
+                return
+            if path == "/api/mayhem2":
+                from src.signal.mayhem2 import get_engine as _m2
+                self._json(200, _m2().snapshot())
                 return
             if path == "/api/predict":
                 rows, err = _predict_rows()

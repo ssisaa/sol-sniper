@@ -140,6 +140,7 @@ class CallerStream:
         # (wallet, mint) -> ts of the full exit
         self._exits: Dict[Tuple[str, str], float] = {}
         self._listeners: List[Callable[[Dict[str, Any]], None]] = []
+        self._raw_listeners: List[Callable[[Dict[str, Any]], None]] = []
         self._started = False
         self._connected = False
         self._last_msg = 0.0
@@ -175,6 +176,10 @@ class CallerStream:
 
     def add_listener(self, fn: Callable[[Dict[str, Any]], None]) -> None:
         self._listeners.append(fn)
+
+    def add_raw_listener(self, fn: Callable[[Dict[str, Any]], None]) -> None:
+        """Every buy/sell trade the socket decodes, once, before any caller filter (Mayhem2)."""
+        self._raw_listeners.append(fn)
 
     def start(self) -> None:
         if self._started:
@@ -348,6 +353,13 @@ class CallerStream:
                 continue
             key = (os.environ.get("PUMPPORTAL_API_KEY") or "").strip()
             if name == "pumpportal":
+                # PumpPortal bills its trade feed from this wallet (0.01 SOL chunks to its fee wallet
+                # 7FeFBY…i4g6, about every 7 minutes while the wallet holds 0.02 SOL or more). Off
+                # unless SOL_SNIPER_PUMPPORTAL_FEED=1: the free RPC log feed carries the same trades.
+                # Lightning trades still use the key; only this paid data feed is off.
+                if os.environ.get("SOL_SNIPER_PUMPPORTAL_FEED", "").strip().lower() not in ("1", "true", "yes"):
+                    log.info("CALLER STREAM PumpPortal data feed OFF (it bills this wallet) — free RPC logs only")
+                    return
                 if not key:
                     return
                 if self._portal_refused:
@@ -577,6 +589,14 @@ class CallerStream:
         self._trades += 1
         if kind not in ("buy", "sell"):
             return
+        if self._raw_listeners:
+            raw = {"kind": kind, "mint": mint, "wallet": trader, "sol": sol, "tokens": tokens,
+                   "price_sol": price, "ts": now, "signature": sig}
+            for fn in list(self._raw_listeners):
+                try:
+                    fn(raw)
+                except Exception:
+                    log.debug("caller stream raw listener failed", exc_info=True)
         user = self._wallets.get(trader)
         if user is None:
             return

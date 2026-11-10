@@ -796,7 +796,7 @@ class TradeLedger:
             return 0
         changed = [
             e for e in self.entries
-            if e.mint == mint and str(e.source or "") in ("callout", "opencopy", "mayhem")
+            if e.mint == mint and str(e.source or "") in ("callout", "opencopy", "mayhem", "mayhem2")
             and (not e.call_user or (wallet and not e.call_wallet))
         ]
         for e in changed:
@@ -1062,7 +1062,7 @@ class TradeLedger:
         return len(changed)
 
     def _call_wallet(self, source: str, mint: str) -> str:
-        if str(source or "") not in ("callout", "opencopy", "mayhem") and _source_name(source) not in ("callout", "opencopy", "mayhem"):
+        if str(source or "") not in ("callout", "opencopy", "mayhem", "mayhem2") and _source_name(source) not in ("callout", "opencopy", "mayhem", "mayhem2"):
             return ""
         for x in reversed(self.entries):
             if x.mint == mint and getattr(x, "call_wallet", ""):
@@ -1071,7 +1071,7 @@ class TradeLedger:
 
     def _call_user(self, source: str, name: str, mint: str) -> str:
         """Caller name for a Callout/OpenCopy trade. A close without one keeps the buy's caller."""
-        if _source_name(source) not in ("callout", "opencopy", "mayhem") and str(source or "") not in ("callout", "opencopy", "mayhem"):
+        if _source_name(source) not in ("callout", "opencopy", "mayhem", "mayhem2") and str(source or "") not in ("callout", "opencopy", "mayhem", "mayhem2"):
             return ""
         name = str(name or "").strip()
         if name and name != "No caller holds":

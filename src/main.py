@@ -958,11 +958,11 @@ async def live_feed_demo(
                     if pos.status != "OPEN":
                         continue
                     if (
-                        getattr(pos, "source", "") in ("predict", "callout", "opencopy", "mayhem")
-                        or getattr(pos, "strategy", "") in ("predict", "callout", "opencopy", "mayhem")
+                        getattr(pos, "source", "") in ("predict", "callout", "opencopy", "mayhem", "mayhem2")
+                        or getattr(pos, "strategy", "") in ("predict", "callout", "opencopy", "mayhem", "mayhem2")
                         or bool(getattr(pos, "quick_entry", False))
                     ):
-                        if getattr(pos, "source", "") in ("predict", "callout", "opencopy", "mayhem"):
+                        if getattr(pos, "source", "") in ("predict", "callout", "opencopy", "mayhem", "mayhem2"):
                             pos.strategy = pos.source
                         pos.stop_pct = None
                         continue
@@ -1000,6 +1000,8 @@ async def live_feed_demo(
             labels.append("opencopy")
         if getattr(cfg, "mayhem_enabled", False) or getattr(cfg, "filter_mode", "") == "mayhem":
             labels.append("mayhem")
+        if getattr(cfg, "mayhem2_enabled", False) or getattr(cfg, "filter_mode", "") == "mayhem2":
+            labels.append("mayhem2")
         stats["filter_mode"] = " + ".join(labels) if labels else cfg.filter_mode
         stats["trade_mode"] = trade_mode
         return cfg
@@ -2352,7 +2354,7 @@ async def live_feed_demo(
                     vals.append(getattr(trade, "source", ""))
                     for value in vals:
                         text = str(value or "").strip().lower()
-                        if text in ("opencopy", "mayhem", "callout", "predict"):
+                        if text in ("opencopy", "mayhem", "mayhem2", "callout", "predict"):
                             return text
                     for value in vals:
                         text = str(value or "").strip()
@@ -2627,8 +2629,8 @@ async def live_feed_demo(
 
         def _is_copy(pos) -> bool:
             return (
-                getattr(pos, "strategy", "") in ("callout", "opencopy", "mayhem")
-                or getattr(pos, "source", "") in ("callout", "opencopy", "mayhem")
+                getattr(pos, "strategy", "") in ("callout", "opencopy", "mayhem", "mayhem2")
+                or getattr(pos, "source", "") in ("callout", "opencopy", "mayhem", "mayhem2")
             )
 
         _own = {"pk": None}
@@ -2690,8 +2692,8 @@ async def live_feed_demo(
             pos.low_since_pct = round(pct if prev_low is None else min(float(prev_low), pct), 2)
             pos.peak_price = 1.0 + float(pos.peak_since_pct) / 100.0
             return (
-                getattr(pos, "strategy", "") in ("callout", "opencopy", "mayhem")
-                or getattr(pos, "source", "") in ("callout", "opencopy", "mayhem")
+                getattr(pos, "strategy", "") in ("callout", "opencopy", "mayhem", "mayhem2")
+                or getattr(pos, "source", "") in ("callout", "opencopy", "mayhem", "mayhem2")
             )
 
         def _apply_coin(pos, coin) -> None:
@@ -2718,8 +2720,8 @@ async def live_feed_demo(
             if px <= 0:
                 return
             callout_held = (
-                getattr(pos, "strategy", "") in ("callout", "opencopy", "mayhem")
-                or getattr(pos, "source", "") in ("callout", "opencopy", "mayhem")
+                getattr(pos, "strategy", "") in ("callout", "opencopy", "mayhem", "mayhem2")
+                or getattr(pos, "source", "") in ("callout", "opencopy", "mayhem", "mayhem2")
             )
             predict_held = (
                 callout_held
@@ -3354,7 +3356,7 @@ async def live_feed_demo(
                 return
             try:
                 from src.config.runtime import get_config
-                if str(getattr(get_config(), "filter_mode", "") or "") in ("callout", "opencopy", "mayhem", "predict"):
+                if str(getattr(get_config(), "filter_mode", "") or "") in ("callout", "opencopy", "mayhem", "mayhem2", "predict"):
                     return
             except Exception:
                 pass
@@ -4109,16 +4111,38 @@ async def live_feed_demo(
                     raw = 0
             if raw <= 0:
                 continue
+            # The trade this buy belongs to was already closed by the bot (dust, sold, paused...):
+            # do not open it again. Re-booking a closed coin every sync made a 10-second loop.
+            try:
+                from src.storage.mint_flags import mint_flag
+                if mint_flag(mint) == "DUST":
+                    continue
+            except Exception:
+                pass
+            prev_src = ""
+            closed_after = False
+            for e in reversed(list(get_ledger().entries)):
+                if e.mint != mint:
+                    continue
+                side_e = (e.side or "").upper()
+                if side_e == "CLOSE" and float(e.ts or 0) >= ts - 5:
+                    closed_after = True
+                if side_e == "OPEN" and not prev_src:
+                    prev_src = str(e.source or "")
+            if closed_after:
+                continue
             sol = float(row.get("sol_amount") or 0)
             if sol <= 0:
                 sol = 0.015
+            # Same source as the buy that opened it (a Mayhem buy stays mayhem, not opencopy).
+            rebook_src = prev_src if prev_src in ("callout", "opencopy", "mayhem", "mayhem2", "predict", "dayscalp", "launch") else "opencopy"
             pos = await manager.open_position(
                 mint=mint,
                 mode=PositionMode.LIVE,
                 entry_sol=sol,
                 entry_price=(sol / raw) if raw else 0.0,
                 tokens=float(raw),
-                source="opencopy",
+                source=rebook_src,
                 signature=str(row.get("signature") or ""),
             )
             if pos is None:
@@ -4136,7 +4160,7 @@ async def live_feed_demo(
                     mint=mint,
                     symbol=pos.symbol,
                     mode="live",
-                    source="opencopy",
+                    source=rebook_src,
                     token_amount=float(raw),
                     entry_sol=sol,
                     entry_fee_sol=0.0,
@@ -4734,7 +4758,7 @@ async def dayscalp_loop(
             return
         cfg = get_config()
         mode = str(getattr(cfg, "filter_mode", "") or "").strip().lower()
-        real = {"opencopy", "mayhem", "callout", "predict", "launch", "dayscalp"}
+        real = {"opencopy", "mayhem", "mayhem2", "callout", "predict", "launch", "dayscalp"}
         fake_close = {
             "wallet_already_sold", "not_in_wallet", "not_in_wallet_on_resume",
             "empty_wallet",
@@ -4987,7 +5011,7 @@ async def dayscalp_loop(
                 bind_trade_caller(pos)
             except Exception:
                 log.debug("restore caller bind failed", exc_info=True)
-            if source in ("callout", "opencopy", "mayhem", "predict"):
+            if source in ("callout", "opencopy", "mayhem", "mayhem2", "predict"):
                 pos.stop_pct = None
                 pos._from_openholds = source in ("callout", "opencopy", "mayhem")
             if entry_time:
@@ -6875,12 +6899,18 @@ async def dayscalp_loop(
                         continue
                     state = str(body.get("state") or "").strip().lower()
                     pos._mayhem_state = state
-                    if state == "paused":
+                    if state == "paused" and not getattr(pos, "_dust_value", False):
+                        # A sell with no route (pump pays no sellers while paused) marks it DUST.
                         manager.kick_mayhem_paused(pos, str(body.get("pause_reason") or ""))
             except Exception:
                 log.debug("mayhem pause watch failed", exc_info=True)
 
     asyncio.create_task(_mayhem_pause_watch())
+    try:
+        from src.signal.mayhem2 import get_engine as _mayhem2_engine
+        _mayhem2_engine().start(manager, trader, fill_px=_fill_px_usd, apply_since=apply_callout_since)
+    except Exception:
+        log.exception("Mayhem2 engine did not start")
     asyncio.create_task(_reopen_unsold())
     from src.execution.wallet_gate import set_wallet_listener, sync_wallet_forever
     set_wallet_listener(_book_bought_still_held)
@@ -6991,8 +7021,8 @@ async def dayscalp_loop(
             except Exception:
                 px = 0.0
             callout_held = (
-                getattr(pos, "strategy", "") in ("callout", "opencopy", "mayhem")
-                or getattr(pos, "source", "") in ("callout", "opencopy", "mayhem")
+                getattr(pos, "strategy", "") in ("callout", "opencopy", "mayhem", "mayhem2")
+                or getattr(pos, "source", "") in ("callout", "opencopy", "mayhem", "mayhem2")
             )
             if px > 0 and callout_held and float(getattr(pos, "_stream_px_at", 0) or 0) > _time.time() - 3:
                 # The trade socket already set a newer price. The coins-v2 read lags it.
@@ -7122,8 +7152,8 @@ async def dayscalp_loop(
                 mine = [
                     p for p in manager.positions.values()
                     if p.status == "OPEN" and (
-                        getattr(p, "strategy", "") in ("callout", "opencopy", "mayhem")
-                        or getattr(p, "source", "") in ("callout", "opencopy", "mayhem")
+                        getattr(p, "strategy", "") in ("callout", "opencopy", "mayhem", "mayhem2")
+                        or getattr(p, "source", "") in ("callout", "opencopy", "mayhem", "mayhem2")
                     )
                 ]
                 if not mine:
